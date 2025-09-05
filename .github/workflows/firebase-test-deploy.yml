@@ -3,21 +3,32 @@ name: Deploy to Firebase Test Channel
 on:
   push:
     branches:
-      - main
+      - main  # Trigger deployment on pushes to main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Node.js
+      # 2. Setup Node.js 20
+      - name: Setup Node.js 20
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
+      # 3. Remove any pre-installed Firebase CLI (avoids conflicts)
+      - name: Remove old global Firebase CLI
+        run: npm uninstall -g firebase-tools || true
+
+      # 4. Check Firebase CLI version
+      - name: Verify Firebase CLI version
+        run: npx firebase-tools@latest --version
+
+      # 5. Deploy to Firebase test channel
       - name: Deploy to Firebase Test Channel
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
