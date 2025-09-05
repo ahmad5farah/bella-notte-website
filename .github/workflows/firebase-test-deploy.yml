@@ -18,11 +18,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Latest Firebase CLI
-        run: npm install -g firebase-tools@latest
-
       - name: Deploy to Firebase Test Channel
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          firebase deploy --only hosting --channel test --token $FIREBASE_TOKEN
+          npx firebase-tools@latest deploy --only hosting --channel test --token $FIREBASE_TOKEN
