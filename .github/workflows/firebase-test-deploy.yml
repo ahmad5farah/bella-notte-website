@@ -21,5 +21,4 @@ jobs:
       - name: Deploy to Firebase Test Channel
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: |
-          npx firebase-tools@latest deploy --only hosting --channel test --token $FIREBASE_TOKEN
+        run: npx firebase-tools@latest deploy --only hosting --channel test --token $FIREBASE_TOKEN
