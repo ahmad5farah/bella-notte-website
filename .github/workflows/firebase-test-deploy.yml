@@ -17,7 +17,15 @@ jobs:
         with:
           node-version: '20'
 
+      # Remove old global Firebase CLI
+      - name: Remove old global Firebase CLI
+        run: npm uninstall -g firebase-tools || true
+
+      # Install Firebase CLI fresh in a temp folder and run deploy
       - name: Deploy to Firebase Test Channel
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: npx --yes firebase-tools@latest deploy --only hosting --channel test --token $FIREBASE_TOKEN
+        run: |
+          mkdir -p /tmp/firebase-cli
+          npm install --prefix /tmp/firebase-cli firebase-tools@latest
+          /tmp/firebase-cli/node_modules/.bin/firebase deploy --only hosting --channel test --token $FIREBASE_TOKEN
