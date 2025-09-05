@@ -18,8 +18,8 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+      - name: Install Latest Firebase CLI
+        run: npm install -g firebase-tools@latest
 
       - name: Deploy to Firebase Test Channel
         env:
