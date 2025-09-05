@@ -70,12 +70,19 @@ function showToast(message, type = 'info') {
    LOADING SCREEN
    ===================== */
 function hideLoadingScreen() {
-  const loading = $('#loadingScreen');
+  const loading = document.getElementById('loadingScreen');
   if (loading) {
-    loading.classList.add('hidden');
-    setTimeout(() => (loading.style.display = 'none'), 400);
+    loading.classList.add('hidden'); // optional: for fade-out animation in CSS
+    setTimeout(() => {
+      loading.style.display = 'none';
+    }, 400);
   }
 }
+
+// Run when page loads
+window.addEventListener('load', () => {
+  hideLoadingScreen();
+});
 
 /* =====================
    LOCAL STORAGE
@@ -942,7 +949,7 @@ try {
   console.error('Order submit error', err);
   showToast('Failed to place order. Try again later.', 'error');
 }
-
+}
 
 
 /* =====================
