@@ -24,16 +24,19 @@ jobs:
       - name: Remove old global Firebase CLI
         run: npm uninstall -g firebase-tools || true
 
-      # 4. Install latest Firebase CLI globally
-      - name: Install latest Firebase CLI
-        run: npm install -g firebase-tools@latest
+      # 4. Install Firebase CLI in a temporary folder
+      - name: Install Firebase CLI locally
+        run: |
+          mkdir -p /tmp/firebase-cli
+          npm install --prefix /tmp/firebase-cli firebase-tools@latest
 
-      # 5. Verify Firebase CLI version
+      # 5. Verify CLI version
       - name: Verify Firebase CLI version
-        run: firebase --version
+        run: /tmp/firebase-cli/node_modules/.bin/firebase --version
 
       # 6. Deploy to Firebase test channel
       - name: Deploy to Firebase Test Channel
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: firebase deploy --only hosting --project bella-notte-18d54 --channel test --token $FIREBASE_TOKEN
+        run: |
+          /tmp/firebase-cli/node_modules/.bin/firebase deploy --only hosting --project bella-notte-18d54 --channel test --token $FIREBASE_TOKEN
