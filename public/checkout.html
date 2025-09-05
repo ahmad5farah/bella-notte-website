@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout - Bella Notte</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+  <!-- HEADER / NAVBAR -->
+  <header>
+    <nav class="navbar">
+      <div class="logo">
+        <a href="index.html">Bella Notte</a>
+      </div>
+      <ul class="nav-links" id="navMenu">
+        <li><a href="index.html#home">Home</a></li>
+        <li><a href="index.html#menu">Menu</a></li>
+        <li><a href="index.html#reservations">Reservations</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-actions">
+        <div class="cart-toggle" onclick="openCart()">
+          <i class="fas fa-shopping-cart"></i>
+          <span id="cartCount" class="cart-count hidden">0</span>
+        </div>
+        <div class="user-toggle" onclick="toggleUserMenu()">
+          <i id="userIcon" class="fas fa-user"></i>
+          <span id="userGreeting">Account</span>
+          <div id="userDropdown" class="dropdown"></div>
+        </div>
+        <div class="mobile-toggle" onclick="toggleMobileMenu()">
+          <i class="fas fa-bars"></i>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="checkout-page">
+    <section class="checkout-container">
+      <h1><i class="fas fa-credit-card"></i> Checkout</h1>
+
+      <form id="checkoutForm" class="checkout-form">
+        <!-- Delivery or Pickup -->
+        <div class="checkout-section">
+          <h3>Delivery / Pickup</h3>
+          <label><input type="radio" name="deliveryType" value="delivery" checked> Home Delivery</label>
+          <label><input type="radio" name="deliveryType" value="pickup"> Pickup</label>
+        </div>
+
+        <div id="deliveryFields">
+          <div class="form-group">
+            <label for="deliveryName">Full Name</label>
+            <input id="deliveryName" type="text" required />
+          </div>
+          <div class="form-group">
+            <label for="deliveryPhone">Phone</label>
+            <input id="deliveryPhone" type="tel" required />
+          </div>
+          <div class="form-group">
+            <label for="deliveryAddressLine">Address</label>
+            <input id="deliveryAddressLine" type="text" required />
+          </div>
+          <div class="form-group">
+            <label for="deliveryCity">City</label>
+            <input id="deliveryCity" type="text" required />
+          </div>
+          <div class="form-group">
+            <label for="deliveryPincode">Pincode</label>
+            <input id="deliveryPincode" type="text" required pattern="[0-9]{6}" />
+          </div>
+          <div class="form-group">
+            <label for="deliveryInstructions">Delivery Instructions</label>
+            <textarea id="deliveryInstructions"></textarea>
+          </div>
+        </div>
+
+        <!-- Payment -->
+        <div class="checkout-section">
+          <h3>Payment</h3>
+          <label><input type="radio" name="paymentMethod" value="cod" checked> Cash on Delivery</label>
+          <label><input type="radio" name="paymentMethod" value="upi"> UPI</label>
+          <label><input type="radio" name="paymentMethod" value="card"> Card</label>
+        </div>
+
+        <!-- Payment Details -->
+        <div id="paymentDetails" class="payment-details hidden">
+          <div id="cardFields" class="hidden">
+            <label for="cardNumber">Card Number</label>
+            <input id="cardNumber" type="text" maxlength="19" />
+            <label for="expiryDate">Expiry</label>
+            <input id="expiryDate" type="text" maxlength="5" />
+            <label for="cvv">CVV</label>
+            <input id="cvv" type="password" maxlength="3" />
+            <label for="cardName">Name on Card</label>
+            <input id="cardName" type="text" />
+          </div>
+          <div id="upiFields" class="hidden">
+            <label for="upiId">UPI ID</label>
+            <input id="upiId" type="text" />
+          </div>
+        </div>
+
+        <!-- Order Summary -->
+        <div class="checkout-section order-summary">
+          <h3>Order Summary</h3>
+          <div id="checkoutOrderItems"></div>
+          <div class="order-totals">
+            <div><span>Subtotal:</span> ₹<span id="checkoutSubtotal">0</span></div>
+            <div><span>Tax (12%):</span> ₹<span id="checkoutTax">0</span></div>
+            <div><span>Delivery Fee:</span> ₹<span id="checkoutDeliveryFee">40</span></div>
+            <div class="total"><strong>Total:</strong> ₹<strong id="checkoutTotal">0</strong></div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="checkout-actions">
+          <a href="index.html" class="btn-secondary"><i class="fas fa-arrow-left"></i> Back to Cart</a>
+          <button type="submit" class="btn-primary" id="placeOrderBtn">
+            <i class="fas fa-check"></i> Place Order
+          </button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>&copy; 2025 Bella Notte. All rights reserved.</p>
+  </footer>
+
+  <!-- FIREBASE SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <!-- CONFIG & MAIN SCRIPT -->
+  <script src="firebase_config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

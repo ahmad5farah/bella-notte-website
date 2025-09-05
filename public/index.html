@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bella Notte - Authentic Italian Restaurant</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK - COMPAT VERSION -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- Firebase Config -->
+    <script src="firebase-config.js"></script>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loader">
+            <i class="fas fa-utensils"></i>
+            <h3>Bella Notte</h3>
+            <p>Loading delicious experience...</p>
+        </div>
+    </div>
+
+    <!-- Shopping Cart Sidebar -->
+    <div id="cartSidebar" class="cart-sidebar">
+        <div class="cart-header">
+            <h3><i class="fas fa-shopping-cart"></i> Your Order</h3>
+            <button class="close-cart" onclick="closeCart()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cart-content">
+            <div id="cartItems" class="cart-items">
+                <div class="empty-cart">
+                    <i class="fas fa-shopping-cart"></i>
+                    <h3>Your cart is empty</h3>
+                    <p>Add some delicious items to get started!</p>
+                </div>
+            </div>
+            <div class="cart-summary">
+                <div class="subtotal">
+                    <span>Subtotal: ₹<span id="cartSubtotal">0</span></span>
+                </div>
+                <div class="tax">
+                    <span>Tax (12%): ₹<span id="cartTax">0</span></span>
+                </div>
+                <div class="total">
+                    <strong>Total: ₹<span id="cartTotal">0</span></strong>
+                </div>
+                <button class="checkout-btn" onclick="window.location.href='checkout.html'" disabled>
+  <i class="fas fa-credit-card"></i> Proceed to Checkout
+</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cart Overlay -->
+    <div id="cartOverlay" class="cart-overlay" onclick="closeCart()"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-utensils"></i> Bella Notte
+            </a>
+            
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link active">Home</a></li>
+                <li><a href="menu.html" class="nav-link">Menu</a></li>
+                <li><a href="gallery.html" class="nav-link">Gallery</a></li>
+                <li><a href="reservations.html" class="nav-link">Reservations</a></li>
+                <li><a href="about.html" class="nav-link">About</a></li>
+                <li><a href="contact.html" class="nav-link">Contact</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <!-- Cart Button -->
+                <button class="cart-toggle" onclick="openCart()">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span id="cartCount" class="cart-count hidden">0</span>
+                </button>
+                
+                <!-- User Account Dropdown -->
+                <div class="user-dropdown">
+                    <button class="user-toggle" onclick="toggleUserMenu()">
+                        <i class="fas fa-user" id="userIcon"></i>
+                        <span id="userGreeting">Account</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown">
+                        <a href="#" onclick="showAuthModal('login')">Login</a>
+                        <a href="#" onclick="showAuthModal('register')">Sign Up</a>
+                    </div>
+                </div>
+                
+                <!-- Mobile Menu Toggle -->
+                <button class="mobile-toggle" onclick="toggleMobileMenu()">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Home Section -->
+        <section class="home-page">
+            <!-- Hero Section -->
+            <div class="hero">
+                <div class="container">
+                    <div class="hero-content">
+                        <h1>Benvenuti alla Bella Notte</h1>
+                        <p>Experience Authentic Italian Cuisine Delivered to Your Doorstep</p>
+                        <div class="hero-buttons">
+                            <a href="menu.html" class="cta-primary">
+                                <i class="fas fa-utensils"></i> Order Online
+                            </a>
+                            <a href="reservations.html" class="cta-secondary">
+                                <i class="fas fa-calendar"></i> Book Table
+                            </a>
+                        </div>
+                    </div>
+                    <div class="hero-image">
+                        <img src="https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?auto=compress&cs=tinysrgb&w=1000" 
+                             alt="Delicious Italian Food" 
+                             onerror="this.src='https://via.placeholder.com/600x400/8B4513/FFFFFF?text=Delicious+Italian+Food'" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Featured Categories -->
+            <section class="featured-categories">
+                <div class="container">
+                    <h2>Our Specialties</h2>
+                    <div class="categories-grid">
+                        <div class="category-card" onclick="window.location.href='menu.html#pasta'">
+                            <img src="https://images.pexels.com/photos/4518843/pexels-photo-4518843.jpeg?auto=compress&cs=tinysrgb&w=500" 
+                                 alt="Fresh Pasta"
+                                 onerror="this.src='https://via.placeholder.com/400x300/8B4513/FFFFFF?text=Fresh+Pasta'">
+                            <div class="category-info">
+                                <h3>Fresh Pasta</h3>
+                                <p>Handmade daily with traditional recipes</p>
+                            </div>
+                        </div>
+                        <div class="category-card" onclick="window.location.href='menu.html#pizza'">
+                            <img src="https://images.pexels.com/photos/315755/pexels-photo-315755.jpeg?auto=compress&cs=tinysrgb&w=500" 
+                                 alt="Wood-Fired Pizza"
+                                 onerror="this.src='https://via.placeholder.com/400x300/8B4513/FFFFFF?text=Wood+Fired+Pizza'">
+                            <div class="category-info">
+                                <h3>Wood-Fired Pizza</h3>
+                                <p>Authentic Neapolitan style from our brick oven</p>
+                            </div>
+                        </div>
+                        <div class="category-card" onclick="window.location.href='menu.html#desserts'">
+                            <img src="https://images.pexels.com/photos/6896379/pexels-photo-6896379.jpeg?auto=compress&cs=tinysrgb&w=500" 
+                                 alt="Italian Desserts"
+                                 onerror="this.src='https://via.placeholder.com/400x300/8B4513/FFFFFF?text=Italian+Desserts'">
+                            <div class="category-info">
+                                <h3>Italian Desserts</h3>
+                                <p>Sweet endings to perfect your meal</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Popular Dishes -->
+            <section class="popular-dishes">
+                <div class="container">
+                    <h2>Customer Favorites</h2>
+                    <div id="popularDishes" class="dishes-grid">
+                        <!-- Loading state -->
+                        <div class="loading-state">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <p>Loading popular dishes...</p>
+                        </div>
+                    </div>
+                    <div class="text-center" style="margin-top: 2rem;">
+                        <a href="menu.html" class="cta-primary">View Full Menu</a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Restaurant Features -->
+            <section class="features">
+                <div class="container">
+                    <h2>Why Choose Bella Notte?</h2>
+                    <div class="features-grid">
+                        <div class="feature-card">
+                            <i class="fas fa-truck"></i>
+                            <h3>Fast Delivery</h3>
+                            <p>Fresh food delivered hot in 30-45 minutes</p>
+                        </div>
+                        <div class="feature-card">
+                            <i class="fas fa-leaf"></i>
+                            <h3>Fresh Ingredients</h3>
+                            <p>Locally sourced, premium quality ingredients</p>
+                        </div>
+                        <div class="feature-card">
+                            <i class="fas fa-award"></i>
+                            <h3>Award Winning</h3>
+                            <p>Recognized for excellence in Italian cuisine</p>
+                        </div>
+                        <div class="feature-card">
+                            <i class="fas fa-heart"></i>
+                            <h3>Made with Love</h3>
+                            <p>Traditional family recipes passed down generations</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <!-- Authentication Modals -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAuthModal()">&times;</span>
+            
+            <!-- Login Form -->
+            <div id="loginForm" class="auth-form active">
+                <h2>Welcome Back</h2>
+                <form id="loginFormElement">
+                    <div id="loginMessage"></div>
+                    
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    
+                    <button type="submit" class="auth-btn">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                    
+                    <p class="auth-switch">
+                        Don't have an account? 
+                        <a href="#" onclick="switchToRegister()">Sign up</a>
+                    </p>
+                </form>
+            </div>
+            
+            <!-- Register Form -->
+            <div id="registerForm" class="auth-form">
+                <h2>Join Bella Notte</h2>
+                <form id="registerFormElement">
+                    <div id="registerMessage"></div>
+                    
+                    <div class="form-group">
+                        <label for="registerName">Full Name</label>
+                        <input type="text" id="registerName" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="registerEmail">Email</label>
+                        <input type="email" id="registerEmail" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="registerPhone">Phone Number</label>
+                        <input type="tel" id="registerPhone" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="registerPassword">Password</label>
+                        <input type="password" id="registerPassword" required minlength="6">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <input type="password" id="confirmPassword" required minlength="6">
+                    </div>
+                    
+                    <button type="submit" class="auth-btn">
+                        <i class="fas fa-user-plus"></i> Create Account
+                    </button>
+                    
+                    <p class="auth-switch">
+                        Already have an account? 
+                        <a href="#" onclick="switchToLogin()">Login</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3><i class="fas fa-utensils"></i> Bella Notte</h3>
+                    <p>Authentic Italian cuisine delivered to your doorstep. Experience the taste of Italy with every bite.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-facebook"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-youtube"></i></a>
+                    </div>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="menu.html">Menu</a></li>
+                        <li><a href="reservations.html">Reservations</a></li>
+                        <li><a href="about.html">About Us</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Contact Info</h4>
+                    <div class="contact-info">
+                        <p><i class="fas fa-map-marker-alt"></i> 123 Vittorio Emanuele Street, Mumbai</p>
+                        <p><i class="fas fa-phone"></i> +91 9608176539</p>
+                        <p><i class="fas fa-envelope"></i> info@bellanotte.com</p>
+                    </div>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Newsletter</h4>
+                    <p>Subscribe for special offers and updates</p>
+                    <form class="newsletter-form">
+                        <input type="email" placeholder="Your email address" required>
+                        <button type="submit"><i class="fas fa-paper-plane"></i></button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2024 Bella Notte. All rights reserved. | Privacy Policy | Terms of Service</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>

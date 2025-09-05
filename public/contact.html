@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact Us - Bella Notte Italian Restaurant</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+  <!-- Firebase SDK - COMPAT VERSION -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+</head>
+<body>
+  <!-- Cart Sidebar -->
+  <div id="cartSidebar" class="cart-sidebar">
+    <div class="cart-header">
+      <h3><i class="fas fa-shopping-cart"></i> Your Order</h3>
+      <button class="close-cart" onclick="closeCart()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="cart-content">
+      <div id="cartItems" class="cart-items">
+        <div class="empty-cart">
+          <i class="fas fa-shopping-cart"></i>
+          <h3>Your cart is empty</h3>
+          <p>Add some delicious items to get started!</p>
+        </div>
+      </div>
+      <div class="cart-summary">
+        <div class="subtotal">
+          <span>Subtotal: ₹<span id="cartSubtotal">0</span></span>
+        </div>
+        <div class="tax">
+          <span>Tax (12%): ₹<span id="cartTax">0</span></span>
+        </div>
+        <div class="total">
+          <strong>Total: ₹<span id="cartTotal">0</span></strong>
+        </div>
+        <button class="checkout-btn" onclick="proceedToCheckout()" disabled>
+          <i class="fas fa-credit-card"></i> Proceed to Checkout
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cart Overlay -->
+  <div id="cartOverlay" class="cart-overlay" onclick="closeCart()"></div>
+
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <i class="fas fa-utensils"></i> Bella Notte
+      </a>
+      
+      <ul class="nav-menu" id="navMenu">
+        <li><a href="index.html" class="nav-link">Home</a></li>
+        <li><a href="menu.html" class="nav-link">Menu</a></li>
+        <li><a href="gallery.html" class="nav-link">Gallery</a></li>
+        <li><a href="reservations.html" class="nav-link">Reservations</a></li>
+        <li><a href="about.html" class="nav-link">About</a></li>
+        <li><a href="contact.html" class="nav-link active">Contact</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <button class="cart-toggle" onclick="openCart()">
+          <i class="fas fa-shopping-cart"></i>
+          <span id="cartCount" class="cart-count hidden">0</span>
+        </button>
+        
+        <div class="user-dropdown">
+          <button class="user-toggle" onclick="toggleUserMenu()">
+            <i class="fas fa-user" id="userIcon"></i>
+            <span id="userGreeting">Account</span>
+          </button>
+          <div class="dropdown-menu" id="userDropdown">
+            <a href="#" onclick="showAuthModal('login')">Login</a>
+            <a href="#" onclick="showAuthModal('register')">Sign Up</a>
+          </div>
+        </div>
+
+        <button class="mobile-toggle" onclick="toggleMobileMenu()">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <section class="contact-page">
+      <div class="contact-hero">
+        <div class="container">
+          <h1>Contact Us</h1>
+          <p>We'd love to hear from you</p>
+        </div>
+      </div>
+      
+      <div class="container">
+        <div class="contact-content">
+          <!-- Contact Info -->
+          <div class="contact-info">
+            <div class="contact-card">
+              <i class="fas fa-map-marker-alt"></i>
+              <h3>Location</h3>
+              <p>123 Vittorio Emanuele Street<br>Little Italy District<br>Mumbai, Maharashtra 400001</p>
+            </div>
+            <div class="contact-card">
+              <i class="fas fa-phone"></i>
+              <h3>Phone</h3>
+              <p>+91 9608176539<br>+91 7815965017</p>
+            </div>
+            <div class="contact-card">
+              <i class="fas fa-envelope"></i>
+              <h3>Email</h3>
+              <p>info@bellanotte.com<br>orders@bellanotte.com</p>
+            </div>
+            <div class="contact-card">
+              <i class="fas fa-clock"></i>
+              <h3>Hours</h3>
+              <p>Mon-Thu: 5:00 PM - 11:00 PM<br>Fri-Sun: 4:00 PM - 12:00 AM<br>Closed Tuesdays</p>
+            </div>
+          </div>
+
+          <!-- Contact Form -->
+          <div class="contact-form-container">
+            <form id="contactForm" class="contact-form">
+              <h3>Send us a Message</h3>
+              <div id="contactMessage"></div>
+              
+              <div class="form-group">
+                <label for="contactName">Name</label>
+                <input type="text" id="contactName" required>
+              </div>
+              <div class="form-group">
+                <label for="contactEmail">Email</label>
+                <input type="email" id="contactEmail" required>
+              </div>
+              <div class="form-group">
+                <label for="contactSubject">Subject</label>
+                <select id="contactSubject" required>
+                  <option value="">Select a topic</option>
+                  <option value="general">General Inquiry</option>
+                  <option value="reservation">Reservation</option>
+                  <option value="catering">Catering Services</option>
+                  <option value="feedback">Feedback</option>
+                  <option value="complaint">Complaint</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="contactMessageText">Message</label>
+                <textarea id="contactMessageText" rows="6" required></textarea>
+              </div>
+              <button type="submit" class="submit-btn">
+                <i class="fas fa-paper-plane"></i> Send Message
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Auth Modal (same as index) -->
+  <div id="authModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeAuthModal()">&times;</span>
+      <!-- Login -->
+      <div id="loginForm" class="auth-form active">
+        <h2>Welcome Back</h2>
+        <form id="loginFormElement">
+          <div id="loginMessage"></div>
+          <div class="form-group">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" required>
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" required>
+          </div>
+          <button type="submit" class="auth-btn"><i class="fas fa-sign-in-alt"></i> Login</button>
+          <p class="auth-switch">Don't have an account? <a href="#" onclick="switchToRegister()">Sign up</a></p>
+        </form>
+      </div>
+      <!-- Register -->
+      <div id="registerForm" class="auth-form">
+        <h2>Join Bella Notte</h2>
+        <form id="registerFormElement">
+          <div id="registerMessage"></div>
+          <div class="form-group"><label for="registerName">Full Name</label><input type="text" id="registerName" required></div>
+          <div class="form-group"><label for="registerEmail">Email</label><input type="email" id="registerEmail" required></div>
+          <div class="form-group"><label for="registerPhone">Phone Number</label><input type="tel" id="registerPhone" required></div>
+          <div class="form-group"><label for="registerPassword">Password</label><input type="password" id="registerPassword" required minlength="6"></div>
+          <div class="form-group"><label for="confirmPassword">Confirm Password</label><input type="password" id="confirmPassword" required minlength="6"></div>
+          <button type="submit" class="auth-btn"><i class="fas fa-user-plus"></i> Create Account</button>
+          <p class="auth-switch">Already have an account? <a href="#" onclick="switchToLogin()">Login</a></p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h3><i class="fas fa-utensils"></i> Bella Notte</h3>
+          <p>Authentic Italian cuisine delivered to your doorstep. Experience the taste of Italy with every bite.</p>
+          <div class="social-links">
+            <a href="#"><i class="fab fa-facebook"></i></a>
+            <a href="#"><i class="fab fa-instagram"></i></a>
+            <a href="#"><i class="fab fa-twitter"></i></a>
+            <a href="#"><i class="fab fa-youtube"></i></a>
+          </div>
+        </div>
+        <div class="footer-section">
+          <h4>Quick Links</h4>
+          <ul>
+            <li><a href="menu.html">Menu</a></li>
+            <li><a href="reservations.html">Reservations</a></li>
+            <li><a href="about.html">About Us</a></li>
+            <li><a href="contact.html">Contact</a></li>
+          </ul>
+        </div>
+        <div class="footer-section">
+          <h4>Contact Info</h4>
+          <div class="contact-info">
+            <p><i class="fas fa-map-marker-alt"></i> 123 Vittorio Emanuele Street, Mumbai</p>
+            <p><i class="fas fa-phone"></i> +91 9608176539</p>
+            <p><i class="fas fa-envelope"></i> info@bellanotte.com</p>
+          </div>
+        </div>
+        <div class="footer-section">
+          <h4>Newsletter</h4>
+          <p>Subscribe for special offers and updates</p>
+          <form class="newsletter-form">
+            <input type="email" placeholder="Your email address" required>
+            <button type="submit"><i class="fas fa-paper-plane"></i></button>
+          </form>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2024 Bella Notte. All rights reserved. | Privacy Policy | Terms of Service</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Notifications -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="script.js"></script>
+</body>
+</html>

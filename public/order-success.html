@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order Confirmation - Bella Notte</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <nav class="navbar">
+      <div class="logo">
+        <a href="index.html">Bella Notte</a>
+      </div>
+      <ul class="nav-links" id="navMenu">
+        <li><a href="index.html#home">Home</a></li>
+        <li><a href="index.html#menu">Menu</a></li>
+        <li><a href="index.html#reservations">Reservations</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div class="nav-actions">
+        <div class="cart-toggle" onclick="openCart()">
+          <i class="fas fa-shopping-cart"></i>
+          <span id="cartCount" class="cart-count hidden">0</span>
+        </div>
+        <div class="user-toggle" onclick="toggleUserMenu()">
+          <i id="userIcon" class="fas fa-user"></i>
+          <span id="userGreeting">Account</span>
+          <div id="userDropdown" class="dropdown"></div>
+        </div>
+        <div class="mobile-toggle" onclick="toggleMobileMenu()">
+          <i class="fas fa-bars"></i>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- MAIN -->
+  <main class="confirmation-page">
+    <section class="confirmation-container">
+      <h1><i class="fas fa-check-circle"></i> Thank You for Your Order!</h1>
+      <p>Your delicious meal is being prepared. You’ll receive updates shortly.</p>
+
+      <div class="order-details">
+        <h2>Order Details</h2>
+        <p><strong>Order ID:</strong> <span id="orderIdDisplay">Loading...</span></p>
+        <div id="orderInfo">Fetching your order...</div>
+      </div>
+
+      <div class="confirmation-actions">
+        <a href="index.html" class="btn-primary">
+          <i class="fas fa-home"></i> Back to Home
+        </a>
+        <a href="checkout.html" class="btn-secondary">
+          <i class="fas fa-utensils"></i> Place Another Order
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Bella Notte. All rights reserved.</p>
+  </footer>
+
+  <!-- FIREBASE SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+
+  <!-- SHARED SCRIPT -->
+  <script src="script.js"></script>
+
+  <!-- ORDER FETCH LOGIC -->
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("orderId");
+    document.getElementById("orderIdDisplay").textContent = orderId || "Unknown";
+
+    async function loadOrder() {
+      const infoBox = document.getElementById("orderInfo");
+
+      try {
+        if (orderId && window.firebase && window.firebaseConfig) {
+          if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+          const db = firebase.firestore();
+
+          const doc = await db.collection("orders").doc(orderId).get();
+          if (doc.exists) {
+            const data = doc.data();
+            renderOrderDetails(data, infoBox);
+          } else {
+            infoBox.innerHTML = "<p class='error'>⚠️ Order not found.</p>";
+          }
+        } else {
+          // fallback: local orders
+          const raw = localStorage.getItem("localOrders");
+          if (raw) {
+            const orders = JSON.parse(raw);
+            const order = orders.find(o => o.id === orderId);
+            if (order) {
+              renderOrderDetails(order, infoBox);
+              return;
+            }
+          }
+          infoBox.innerHTML = "<p class='error'>⚠️ No order data available.</p>";
+        }
+      } catch (err) {
+        console.error("Order fetch error", err);
+        infoBox.innerHTML = "<p class='error'>⚠️ Error loading order details.</p>";
+      }
+    }
+
+    function renderOrderDetails(order, container) {
+      const itemsHtml = (order.items || [])
+        .map(i => `<li>${i.name} x ${i.qty} — ₹${(i.price * i.qty).toFixed(2)}</li>`)
+        .join("");
+
+      container.innerHTML = `
+        <p><strong>Customer:</strong> ${order.name || "N/A"}</p>
+        <p><strong>Phone:</strong> ${order.phone || "N/A"}</p>
+        <p><strong>Delivery:</strong> ${order.deliveryType || "N/A"}</p>
+        <p><strong>Payment:</strong> ${order.paymentMethod || "N/A"}</p>
+        <h3>Items</h3>
+        <ul>${itemsHtml}</ul>
+        <h3>Totals</h3>
+        <p>Subtotal: ₹${(order.subtotal || 0).toFixed(2)}</p>
+        <p>Tax: ₹${(order.tax || 0).toFixed(2)}</p>
+        <p>Delivery Fee: ₹${(order.deliveryFee || 0).toFixed(2)}</p>
+        <p><strong>Total: ₹${(order.total || 0).toFixed(2)}</strong></p>
+      `;
+    }
+
+    loadOrder();
+  </script>
+</body>
+</html>
