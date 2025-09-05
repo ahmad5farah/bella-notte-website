@@ -3,29 +3,37 @@ name: Deploy to Firebase Test Channel
 on:
   push:
     branches:
-      - main
+      - main  # deploy on pushes to main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      # 1. Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
+      # 2. Setup Node.js 20
       - name: Setup Node.js 20
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # Remove old global Firebase CLI
+      # 3. Remove any old global Firebase CLI
       - name: Remove old global Firebase CLI
         run: npm uninstall -g firebase-tools || true
 
-      # Install Firebase CLI fresh in a temp folder and run deploy
+      # 4. Install latest Firebase CLI globally
+      - name: Install latest Firebase CLI
+        run: npm install -g firebase-tools@latest
+
+      # 5. Verify Firebase CLI version
+      - name: Verify Firebase CLI version
+        run: firebase --version
+
+      # 6. Deploy to Firebase test channel
       - name: Deploy to Firebase Test Channel
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: |
-          mkdir -p /tmp/firebase-cli
-          npm install --prefix /tmp/firebase-cli firebase-tools@latest
-          /tmp/firebase-cli/node_modules/.bin/firebase deploy --only hosting --channel test --token $FIREBASE_TOKEN
+        run: firebase deploy --only hosting --project bella-notte-18d54 --channel test --token $FIREBASE_TOKEN
