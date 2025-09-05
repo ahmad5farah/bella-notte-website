@@ -3,29 +3,24 @@ name: Deploy to Firebase Test Channel
 on:
   push:
     branches:
-      - main  # Trigger deployment on pushes to main branch
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      # 1. Checkout repo
+      - uses: actions/checkout@v3
 
       # 2. Setup Node.js 20
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 3. Install Firebase CLI locally in a temp folder
-      - name: Install Firebase CLI locally
-        run: npm install --prefix /tmp/firebase-cli firebase-tools@latest
-
-      # 4. Deploy to Firebase test channel using local CLI
-      - name: Deploy to Firebase Test Channel
+      # 3. Install and run Firebase deploy using official action
+      - uses: w9jds/firebase-action@v2
+        with:
+          args: deploy --only hosting --project bella-notte-18d54 --channel test
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: /tmp/firebase-cli/node_modules/.bin/firebase deploy --only hosting --project bella-notte-18d54 --channel test --token $FIREBASE_TOKEN
