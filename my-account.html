@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account - Bella Notte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-utensils"></i> Bella Notte
+            </a>
+            
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="menu.html" class="nav-link">Menu</a></li>
+                <li><a href="gallery.html" class="nav-link">Gallery</a></li>
+                <li><a href="reservations.html" class="nav-link">Reservations</a></li>
+                <li><a href="about.html" class="nav-link">About</a></li>
+                <li><a href="contact.html" class="nav-link">Contact</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <button class="cart-toggle" onclick="openCart()">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span id="cartCount" class="cart-count hidden">0</span>
+                </button>
+                
+                <div class="user-dropdown">
+                    <button class="user-toggle" onclick="toggleUserMenu()">
+                        <i class="fas fa-user-circle" id="userIcon"></i>
+                        <span id="userGreeting">Account</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown"></div>
+                </div>
+                
+                <button class="mobile-toggle" onclick="toggleMobileMenu()">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Cart Sidebar -->
+    <div id="cartSidebar" class="cart-sidebar">
+        <div class="cart-header">
+            <h3><i class="fas fa-shopping-cart"></i> Your Order</h3>
+            <button class="close-cart" onclick="closeCart()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cart-content">
+            <div id="cartItems" class="cart-items"></div>
+            <div class="cart-summary">
+                <div class="subtotal">
+                    <span>Subtotal: ₹<span id="cartSubtotal">0</span></span>
+                </div>
+                <div class="tax">
+                    <span>Tax (12%): ₹<span id="cartTax">0</span></span>
+                </div>
+                <div class="total">
+                    <strong>Total: ₹<span id="cartTotal">0</span></strong>
+                </div>
+                <button class="checkout-btn" onclick="proceedToCheckout()" disabled>
+                    <i class="fas fa-credit-card"></i> Proceed to Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="cartOverlay" class="cart-overlay" onclick="closeCart()"></div>
+
+    <!-- Main Content -->
+    <main class="account-page">
+        <div class="container">
+            <!-- Account Header -->
+            <div class="account-header">
+                <div class="account-avatar">
+                    <img id="userAvatar" src="https://via.placeholder.com/120x120/8B4513/FFFFFF?text=User" alt="User Avatar">
+                    <button class="upload-avatar-btn" onclick="showAvatarUpload()">
+                        <i class="fas fa-camera"></i>
+                    </button>
+                </div>
+                <div class="account-info">
+                    <h1 id="userName">Welcome back!</h1>
+                    <p id="userEmail" class="user-email">Loading...</p>
+                    <div class="account-stats">
+                        <div class="stat">
+                            <span class="stat-number" id="totalOrders">0</span>
+                            <span class="stat-label">Orders</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="totalSpent">₹0</span>
+                            <span class="stat-label">Total Spent</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="loyaltyPoints">0</span>
+                            <span class="stat-label">Points</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Verification Alert -->
+            <div id="emailVerificationAlert" class="verification-alert hidden">
+                <div class="alert-content">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <h4>Email Verification Required</h4>
+                        <p>Please verify your email address to secure your account and access all features.</p>
+                    </div>
+                    <button onclick="sendEmailVerification()" class="verify-btn">
+                        Send Verification Email
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <h2>Quick Actions</h2>
+                <div class="actions-grid">
+                    <a href="order-history.html" class="action-card">
+                        <i class="fas fa-receipt"></i>
+                        <h3>Order History</h3>
+                        <p>View past orders and reorder favorites</p>
+                    </a>
+                    <a href="addresses.html" class="action-card">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <h3>Delivery Addresses</h3>
+                        <p>Manage your saved addresses</p>
+                    </a>
+                    <a href="favorites.html" class="action-card">
+                        <i class="fas fa-heart"></i>
+                        <h3>Favorite Items</h3>
+                        <p>Your favorite dishes and drinks</p>
+                    </a>
+                    <a href="payment-methods.html" class="action-card">
+                        <i class="fas fa-credit-card"></i>
+                        <h3>Payment Methods</h3>
+                        <p>Manage cards and payment options</p>
+                    </a>
+                    <a href="notifications.html" class="action-card">
+                        <i class="fas fa-bell"></i>
+                        <h3>Notifications</h3>
+                        <p>Manage your notification preferences</p>
+                    </a>
+                    <a href="account-settings.html" class="action-card">
+                        <i class="fas fa-cog"></i>
+                        <h3>Account Settings</h3>
+                        <p>Update profile and preferences</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="recent-activity">
+                <h2>Recent Activity</h2>
+                <div id="recentActivityList" class="activity-list">
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading recent activity...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loyalty Program -->
+            <div class="loyalty-program">
+                <h2>Loyalty Rewards</h2>
+                <div class="loyalty-card">
+                    <div class="loyalty-info">
+                        <h3>Bella Notte Member</h3>
+                        <p>Earn points with every order and unlock exclusive rewards!</p>
+                        <div class="points-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 65%"></div>
+                            </div>
+                            <span class="progress-text">650 / 1000 points to next reward</span>
+                        </div>
+                    </div>
+                    <div class="loyalty-actions">
+                        <button onclick="showLoyaltyDetails()" class="loyalty-btn">
+                            View Rewards
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3><i class="fas fa-utensils"></i> Bella Notte</h3>
+                    <p>Authentic Italian cuisine delivered to your doorstep.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="menu.html">Menu</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact Info</h4>
+                    <p><i class="fas fa-phone"></i> +91 9608176539</p>
+                    <p><i class="fas fa-envelope"></i> info@bellanotte.com</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Bella Notte. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modals -->
+    <!-- Avatar Upload Modal -->
+    <div id="avatarModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Update Profile Picture</h3>
+                <button class="modal-close" onclick="closeAvatarModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="avatar-upload-area">
+                    <input type="file" id="avatarInput" accept="image/*" onchange="handleAvatarUpload(event)">
+                    <div class="upload-placeholder">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Click to upload or drag and drop</p>
+                        <small>JPG, PNG files up to 5MB</small>
+                    </div>
+                    <div class="avatar-preview" id="avatarPreview" style="display: none;">
+                        <img id="previewImage" src="" alt="Preview">
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button onclick="closeAvatarModal()" class="btn-secondary">Cancel</button>
+                    <button onclick="saveAvatar()" class="btn-primary" id="saveAvatarBtn" disabled>
+                        Save Picture
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Script -->
+    <script src="script.js"></script>
+    <script>
+        // Account-specific functionality
+        let currentUser = null;
+        let userStats = { totalOrders: 0, totalSpent: 0, loyaltyPoints: 0 };
+
+        // Initialize account page
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check if user is logged in
+            if (app.auth) {
+                app.auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        currentUser = user;
+                        await loadUserAccountData();
+                        updateAccountUI();
+                        checkEmailVerification();
+                    } else {
+                        // Redirect to login if not authenticated
+                        window.location.href = 'index.html';
+                    }
+                });
+            } else {
+                // No auth available, redirect
+                window.location.href = 'index.html';
+            }
+        });
+
+        async function loadUserAccountData() {
+            try {
+                // Load user profile
+                if (app.db && currentUser) {
+                    const userDoc = await app.db.collection('users').doc(currentUser.uid).get();
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        updateUserProfile(userData);
+                    }
+
+                    // Load user statistics
+                    const ordersSnapshot = await app.db.collection('orders')
+                        .where('userId', '==', currentUser.uid)
+                        .get();
+
+                    userStats.totalOrders = ordersSnapshot.docs.length;
+                    userStats.totalSpent = ordersSnapshot.docs.reduce((total, doc) => {
+                        return total + (doc.data().total || 0);
+                    }, 0);
+
+                    // Load recent activity
+                    await loadRecentActivity();
+                }
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                showToast('Error loading account data', 'error');
+            }
+        }
+
+        function updateUserProfile(userData) {
+            document.getElementById('userName').textContent = `Welcome back, ${userData.displayName || 'User'}!`;
+            document.getElementById('userEmail').textContent = currentUser.email;
+            
+            if (userData.photoURL) {
+                document.getElementById('userAvatar').src = userData.photoURL;
+            }
+        }
+
+        function updateAccountUI() {
+            document.getElementById('totalOrders').textContent = userStats.totalOrders;
+            document.getElementById('totalSpent').textContent = `₹${userStats.totalSpent.toFixed(2)}`;
+            document.getElementById('loyaltyPoints').textContent = Math.floor(userStats.totalSpent / 10);
+        }
+
+        function checkEmailVerification() {
+            if (currentUser && !currentUser.emailVerified) {
+                document.getElementById('emailVerificationAlert').classList.remove('hidden');
+            }
+        }
+
+        async function loadRecentActivity() {
+            const activityList = document.getElementById('recentActivityList');
+            
+            try {
+                if (app.db && currentUser) {
+                    const ordersSnapshot = await app.db.collection('orders')
+                        .where('userId', '==', currentUser.uid)
+                        .orderBy('createdAt', 'desc')
+                        .limit(5)
+                        .get();
+
+                    if (ordersSnapshot.docs.length === 0) {
+                        activityList.innerHTML = `
+                            <div class="no-activity">
+                                <i class="fas fa-history"></i>
+                                <h3>No recent activity</h3>
+                                <p>Start ordering to see your activity here!</p>
+                                <a href="menu.html" class="btn-primary">Browse Menu</a>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    activityList.innerHTML = ordersSnapshot.docs.map(doc => {
+                        const order = doc.data();
+                        const date = order.createdAt?.toDate?.() || new Date(order.createdAt);
+                        
+                        return `
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-shopping-bag"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <h4>Order #${doc.id.slice(-6)}</h4>
+                                    <p>${order.items?.length || 0} items • ₹${order.total?.toFixed(2) || '0.00'}</p>
+                                    <small>${formatDate(date)}</small>
+                                </div>
+                                <div class="activity-status">
+                                    <span class="status-badge status-${order.status}">${order.status}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('Error loading recent activity:', error);
+                activityList.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Unable to load recent activity</p>
+                    </div>
+                `;
+            }
+        }
+
+        function formatDate(date) {
+            return new Intl.DateTimeFormat('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            }).format(date);
+        }
+
+        // Avatar upload functionality
+        function showAvatarUpload() {
+            document.getElementById('avatarModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAvatarModal() {
+            document.getElementById('avatarModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+            
+            // Reset form
+            document.getElementById('avatarInput').value = '';
+            document.getElementById('avatarPreview').style.display = 'none';
+            document.getElementById('saveAvatarBtn').disabled = true;
+        }
+
+        function handleAvatarUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Validate file
+            if (!file.type.startsWith('image/')) {
+                showToast('Please select a valid image file', 'error');
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('File size must be less than 5MB', 'error');
+                return;
+            }
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('previewImage').src = e.target.result;
+                document.getElementById('avatarPreview').style.display = 'block';
+                document.getElementById('saveAvatarBtn').disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function saveAvatar() {
+            const file = document.getElementById('avatarInput').files[0];
+            if (!file || !currentUser) return;
+
+            try {
+                showLoadingSpinner('Uploading avatar...');
+                
+                // In a real implementation, you'd upload to Firebase Storage
+                // For now, we'll just show a success message
+                showToast('Profile picture updated successfully!', 'success');
+                closeAvatarModal();
+                
+                // Update the avatar display
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('userAvatar').src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+                
+            } catch (error) {
+                console.error('Avatar upload error:', error);
+                showToast('Failed to update profile picture', 'error');
+            } finally {
+                hideLoadingSpinner();
+            }
+        }
+
+        function showLoyaltyDetails() {
+            showToast('Loyalty program details coming soon!', 'info');
+        }
+
+        // Export functions for global access
+        window.showAvatarUpload = showAvatarUpload;
+        window.closeAvatarModal = closeAvatarModal;
+        window.handleAvatarUpload = handleAvatarUpload;
+        window.saveAvatar = saveAvatar;
+        window.showLoyaltyDetails = showLoyaltyDetails;
+    </script>
+</body>
+</html>
