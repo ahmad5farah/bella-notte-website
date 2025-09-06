@@ -1,144 +1,980 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Checkout - Bella Notte</title>
-  <link rel="stylesheet" href="styles.css" />
-  <!-- FontAwesome for icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Bella Notte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
 </head>
 <body>
-
-  <!-- HEADER / NAVBAR -->
-  <header>
+    <!-- Navigation -->
     <nav class="navbar">
-      <div class="logo">
-        <a href="index.html">Bella Notte</a>
-      </div>
-      <ul class="nav-links" id="navMenu">
-        <li><a href="index.html#home">Home</a></li>
-        <li><a href="index.html#menu">Menu</a></li>
-        <li><a href="index.html#reservations">Reservations</a></li>
-        <li><a href="contact.html">Contact</a></li>
-      </ul>
-      <div class="nav-actions">
-        <div class="cart-toggle" onclick="openCart()">
-          <i class="fas fa-shopping-cart"></i>
-          <span id="cartCount" class="cart-count hidden">0</span>
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-utensils"></i> Bella Notte
+            </a>
+            
+            <div class="checkout-progress">
+                <div class="progress-step active">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Cart</span>
+                </div>
+                <div class="progress-step active">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Checkout</span>
+                </div>
+                <div class="progress-step">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Complete</span>
+                </div>
+            </div>
+
+            <div class="nav-actions">
+                <div class="user-dropdown">
+                    <button class="user-toggle" onclick="toggleUserMenu()">
+                        <i class="fas fa-user-circle" id="userIcon"></i>
+                        <span id="userGreeting">Account</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown"></div>
+                </div>
+            </div>
         </div>
-        <div class="user-toggle" onclick="toggleUserMenu()">
-          <i id="userIcon" class="fas fa-user"></i>
-          <span id="userGreeting">Account</span>
-          <div id="userDropdown" class="dropdown"></div>
-        </div>
-        <div class="mobile-toggle" onclick="toggleMobileMenu()">
-          <i class="fas fa-bars"></i>
-        </div>
-      </div>
     </nav>
-  </header>
 
-  <!-- MAIN CONTENT -->
-  <main class="checkout-page">
-    <section class="checkout-container">
-      <h1><i class="fas fa-credit-card"></i> Checkout</h1>
+    <!-- Main Content -->
+    <main class="checkout-page">
+        <div class="container">
+            <div class="checkout-container">
+                <!-- Left Column - Checkout Form -->
+                <div class="checkout-form-section">
+                    <form id="checkoutForm" class="checkout-form">
+                        <!-- Delivery Type Selection -->
+                        <div class="form-section">
+                            <h2><i class="fas fa-truck"></i> Delivery Options</h2>
+                            <div class="delivery-options">
+                                <label class="delivery-option">
+                                    <input type="radio" name="deliveryType" value="delivery" checked>
+                                    <div class="option-content">
+                                        <div class="option-icon">
+                                            <i class="fas fa-truck"></i>
+                                        </div>
+                                        <div class="option-details">
+                                            <h3>Home Delivery</h3>
+                                            <p>Get it delivered to your doorstep</p>
+                                            <small>30-45 minutes • ₹40 delivery fee</small>
+                                        </div>
+                                    </div>
+                                </label>
+                                <label class="delivery-option">
+                                    <input type="radio" name="deliveryType" value="pickup">
+                                    <div class="option-content">
+                                        <div class="option-icon">
+                                            <i class="fas fa-store"></i>
+                                        </div>
+                                        <div class="option-details">
+                                            <h3>Store Pickup</h3>
+                                            <p>Pick up from our restaurant</p>
+                                            <small>20-30 minutes • No delivery fee</small>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
 
-      <form id="checkoutForm" class="checkout-form">
-        <!-- Delivery or Pickup -->
-        <div class="checkout-section">
-          <h3>Delivery / Pickup</h3>
-          <label><input type="radio" name="deliveryType" value="delivery" checked> Home Delivery</label>
-          <label><input type="radio" name="deliveryType" value="pickup"> Pickup</label>
+                        <!-- Delivery Address Section -->
+                        <div id="deliverySection" class="form-section">
+                            <div class="section-header">
+                                <h2><i class="fas fa-map-marker-alt"></i> Delivery Address</h2>
+                                <div class="auth-required" style="display: none;">
+                                    <button type="button" onclick="showSavedAddresses()" class="btn-outline">
+                                        <i class="fas fa-list"></i> Choose Saved Address
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="customerName">Full Name *</label>
+                                    <input type="text" id="customerName" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="customerPhone">Phone Number *</label>
+                                    <input type="tel" id="customerPhone" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="addressLine1">Address Line 1 *</label>
+                                <input type="text" id="addressLine1" required placeholder="House/Flat number, Building name">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="addressLine2">Address Line 2</label>
+                                <input type="text" id="addressLine2" placeholder="Street name, Area">
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="city">City *</label>
+                                    <input type="text" id="city" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="pincode">PIN Code *</label>
+                                    <input type="text" id="pincode" required pattern="[0-9]{6}">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="deliveryInstructions">Delivery Instructions</label>
+                                <textarea id="deliveryInstructions" rows="2" placeholder="Any special instructions for delivery"></textarea>
+                            </div>
+
+                            <div class="save-address-option auth-required" style="display: none;">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="saveAddress">
+                                    <span class="checkmark"></span>
+                                    Save this address for future orders
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Pickup Information -->
+                        <div id="pickupSection" class="form-section" style="display: none;">
+                            <h2><i class="fas fa-store"></i> Pickup Information</h2>
+                            <div class="pickup-info">
+                                <div class="restaurant-info">
+                                    <h3>Bella Notte Restaurant</h3>
+                                    <p><i class="fas fa-map-marker-alt"></i> 123 Vittorio Emanuele Street, Mumbai</p>
+                                    <p><i class="fas fa-phone"></i> +91 9608176539</p>
+                                    <p><i class="fas fa-clock"></i> Open: 11:00 AM - 11:00 PM</p>
+                                </div>
+                                <div class="pickup-form">
+                                    <div class="form-group">
+                                        <label for="pickupName">Your Name *</label>
+                                        <input type="text" id="pickupName">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="pickupPhone">Phone Number *</label>
+                                        <input type="tel" id="pickupPhone">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payment Method Selection -->
+                        <div class="form-section">
+                            <h2><i class="fas fa-credit-card"></i> Payment Method</h2>
+                            <div class="payment-methods">
+                                <label class="payment-method">
+                                    <input type="radio" name="paymentMethod" value="cod" checked>
+                                    <div class="method-content">
+                                        <div class="method-icon">
+                                            <i class="fas fa-money-bill-wave"></i>
+                                        </div>
+                                        <div class="method-details">
+                                            <h3>Cash on Delivery</h3>
+                                            <p>Pay with cash when your order arrives</p>
+                                        </div>
+                                    </div>
+                                </label>
+                                
+                                <label class="payment-method">
+                                    <input type="radio" name="paymentMethod" value="upi">
+                                    <div class="method-content">
+                                        <div class="method-icon">
+                                            <i class="fas fa-mobile-alt"></i>
+                                        </div>
+                                        <div class="method-details">
+                                            <h3>UPI Payment</h3>
+                                            <p>Pay instantly with UPI</p>
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <label class="payment-method">
+                                    <input type="radio" name="paymentMethod" value="card">
+                                    <div class="method-content">
+                                        <div class="method-icon">
+                                            <i class="fas fa-credit-card"></i>
+                                        </div>
+                                        <div class="method-details">
+                                            <h3>Credit/Debit Card</h3>
+                                            <p>Secure payment with your card</p>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <!-- Payment Details -->
+                            <div id="paymentDetails" class="payment-details" style="display: none;">
+                                <!-- UPI Fields -->
+                                <div id="upiFields" class="payment-fields" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="upiId">UPI ID *</label>
+                                        <input type="text" id="upiId" placeholder="yourname@paytm">
+                                        <small>Enter your UPI ID (e.g., 9876543210@paytm)</small>
+                                    </div>
+                                </div>
+
+                                <!-- Card Fields -->
+                                <div id="cardFields" class="payment-fields" style="display: none;">
+                                    <div class="card-notice">
+                                        <i class="fas fa-shield-alt"></i>
+                                        <span>Your card details are secure and encrypted</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cardNumber">Card Number *</label>
+                                        <input type="text" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19">
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="expiryDate">Expiry Date *</label>
+                                            <input type="text" id="expiryDate" placeholder="MM/YY" maxlength="5">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cvv">CVV *</label>
+                                            <input type="password" id="cvv" placeholder="123" maxlength="4">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cardName">Cardholder Name *</label>
+                                        <input type="text" id="cardName" placeholder="Name on card">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Special Instructions -->
+                        <div class="form-section">
+                            <h2><i class="fas fa-comment"></i> Special Instructions</h2>
+                            <div class="form-group">
+                                <textarea id="orderNotes" rows="3" placeholder="Any special requests or dietary requirements..."></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Right Column - Order Summary -->
+                <div class="order-summary-section">
+                    <div class="order-summary sticky">
+                        <h2><i class="fas fa-receipt"></i> Order Summary</h2>
+                        
+                        <div id="orderItems" class="order-items">
+                            <!-- Order items will be populated by JavaScript -->
+                        </div>
+
+                        <div class="promo-section">
+                            <div class="promo-input">
+                                <input type="text" id="promoCode" placeholder="Enter promo code">
+                                <button type="button" onclick="applyPromoCode()" class="apply-promo-btn">
+                                    Apply
+                                </button>
+                            </div>
+                            <div id="promoMessage" class="promo-message"></div>
+                        </div>
+
+                        <div class="order-totals">
+                            <div class="total-row">
+                                <span>Subtotal:</span>
+                                <span>₹<span id="orderSubtotal">0.00</span></span>
+                            </div>
+                            <div class="total-row">
+                                <span>Tax (12%):</span>
+                                <span>₹<span id="orderTax">0.00</span></span>
+                            </div>
+                            <div class="total-row delivery-fee-row">
+                                <span>Delivery Fee:</span>
+                                <span>₹<span id="orderDeliveryFee">40.00</span></span>
+                            </div>
+                            <div class="total-row discount-row" id="discountRow" style="display: none;">
+                                <span>Discount:</span>
+                                <span class="discount">-₹<span id="orderDiscount">0.00</span></span>
+                            </div>
+                            <div class="total-row final-total">
+                                <span><strong>Total:</strong></span>
+                                <span><strong>₹<span id="orderTotal">0.00</span></strong></span>
+                            </div>
+                        </div>
+
+                        <div class="estimated-time">
+                            <i class="fas fa-clock"></i>
+                            <span>Estimated delivery: <span id="estimatedTime">30-45 minutes</span></span>
+                        </div>
+
+                        <button type="submit" form="checkoutForm" class="place-order-btn">
+                            <i class="fas fa-check"></i>
+                            <span>Place Order • ₹<span id="finalAmount">0.00</span></span>
+                        </button>
+
+                        <div class="security-info">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Your payment information is secure and encrypted</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+    </main>
 
-        <div id="deliveryFields">
-          <div class="form-group">
-            <label for="deliveryName">Full Name</label>
-            <input id="deliveryName" type="text" required />
-          </div>
-          <div class="form-group">
-            <label for="deliveryPhone">Phone</label>
-            <input id="deliveryPhone" type="tel" required />
-          </div>
-          <div class="form-group">
-            <label for="deliveryAddressLine">Address</label>
-            <input id="deliveryAddressLine" type="text" required />
-          </div>
-          <div class="form-group">
-            <label for="deliveryCity">City</label>
-            <input id="deliveryCity" type="text" required />
-          </div>
-          <div class="form-group">
-            <label for="deliveryPincode">Pincode</label>
-            <input id="deliveryPincode" type="text" required pattern="[0-9]{6}" />
-          </div>
-          <div class="form-group">
-            <label for="deliveryInstructions">Delivery Instructions</label>
-            <textarea id="deliveryInstructions"></textarea>
-          </div>
+    <!-- Saved Addresses Modal -->
+    <div id="savedAddressesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Choose Delivery Address</h3>
+                <button class="modal-close" onclick="closeSavedAddresses()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="savedAddressesList" class="saved-addresses-list">
+                    <!-- Populated by JavaScript -->
+                </div>
+                <div class="modal-actions">
+                    <button onclick="closeSavedAddresses()" class="btn-secondary">Cancel</button>
+                    <button onclick="window.location.href='addresses.html'" class="btn-outline">
+                        <i class="fas fa-plus"></i> Add New Address
+                    </button>
+                </div>
+            </div>
         </div>
+    </div>
 
-        <!-- Payment -->
-        <div class="checkout-section">
-          <h3>Payment</h3>
-          <label><input type="radio" name="paymentMethod" value="cod" checked> Cash on Delivery</label>
-          <label><input type="radio" name="paymentMethod" value="upi"> UPI</label>
-          <label><input type="radio" name="paymentMethod" value="card"> Card</label>
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2024 Bella Notte. All rights reserved.</p>
+            </div>
         </div>
+    </footer>
 
-        <!-- Payment Details -->
-        <div id="paymentDetails" class="payment-details hidden">
-          <div id="cardFields" class="hidden">
-            <label for="cardNumber">Card Number</label>
-            <input id="cardNumber" type="text" maxlength="19" />
-            <label for="expiryDate">Expiry</label>
-            <input id="expiryDate" type="text" maxlength="5" />
-            <label for="cvv">CVV</label>
-            <input id="cvv" type="password" maxlength="3" />
-            <label for="cardName">Name on Card</label>
-            <input id="cardName" type="text" />
-          </div>
-          <div id="upiFields" class="hidden">
-            <label for="upiId">UPI ID</label>
-            <input id="upiId" type="text" />
-          </div>
-        </div>
+    <script src="script.js"></script>
+    <script>
+        // Checkout page logic
+        let currentUser = null;
+        let savedAddresses = [];
+        let currentPromoCode = null;
+        let orderData = {};
 
-        <!-- Order Summary -->
-        <div class="checkout-section order-summary">
-          <h3>Order Summary</h3>
-          <div id="checkoutOrderItems"></div>
-          <div class="order-totals">
-            <div><span>Subtotal:</span> ₹<span id="checkoutSubtotal">0</span></div>
-            <div><span>Tax (12%):</span> ₹<span id="checkoutTax">0</span></div>
-            <div><span>Delivery Fee:</span> ₹<span id="checkoutDeliveryFee">40</span></div>
-            <div class="total"><strong>Total:</strong> ₹<strong id="checkoutTotal">0</strong></div>
-          </div>
-        </div>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if cart has items
+            if (!app.cart || app.cart.length === 0) {
+                showToast('Your cart is empty', 'warning');
+                setTimeout(() => window.location.href = 'menu.html', 2000);
+                return;
+            }
 
-        <!-- Actions -->
-        <div class="checkout-actions">
-          <a href="index.html" class="btn-secondary"><i class="fas fa-arrow-left"></i> Back to Cart</a>
-          <button type="submit" class="btn-primary" id="placeOrderBtn">
-            <i class="fas fa-check"></i> Place Order
-          </button>
-        </div>
-      </form>
-    </section>
-  </main>
+            // Initialize checkout
+            initializeCheckout();
+            setupEventListeners();
+            populateOrderSummary();
+            
+            // Check authentication state
+            if (app.auth) {
+                app.auth.onAuthStateChanged(async (user) => {
+                    currentUser = user;
+                    updateAuthElements();
+                    if (user) {
+                        await loadUserData();
+                        prefillUserInfo();
+                    }
+                });
+            }
+        });
 
-  <!-- FOOTER -->
-  <footer>
-    <p>&copy; 2025 Bella Notte. All rights reserved.</p>
-  </footer>
+        function initializeCheckout() {
+            // Set minimum order check
+            const subtotal = calculateSubtotal();
+            if (subtotal < 200) {
+                showToast('Minimum order value is ₹200', 'error');
+                setTimeout(() => window.location.href = 'menu.html', 2000);
+                return;
+            }
 
-  <!-- FIREBASE SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+            // Set delivery time based on current time
+            updateEstimatedDeliveryTime();
+        }
 
-  <!-- CONFIG & MAIN SCRIPT -->
-  <script src="firebase_config.js"></script>
-  <script src="script.js"></script>
+        function setupEventListeners() {
+            // Delivery type change
+            document.querySelectorAll('input[name="deliveryType"]').forEach(radio => {
+                radio.addEventListener('change', handleDeliveryTypeChange);
+            });
+
+            // Payment method change
+            document.querySelectorAll('input[name="paymentMethod"]').forEach(radio => {
+                radio.addEventListener('change', handlePaymentMethodChange);
+            });
+
+            // Form submission
+            document.getElementById('checkoutForm').addEventListener('submit', handleCheckoutSubmission);
+
+            // Card number formatting
+            const cardNumberInput = document.getElementById('cardNumber');
+            if (cardNumberInput) {
+                cardNumberInput.addEventListener('input', formatCardNumber);
+            }
+
+            // Expiry date formatting
+            const expiryInput = document.getElementById('expiryDate');
+            if (expiryInput) {
+                expiryInput.addEventListener('input', formatExpiryDate);
+            }
+
+            // PIN code validation
+            const pincodeInput = document.getElementById('pincode');
+            if (pincodeInput) {
+                pincodeInput.addEventListener('input', validatePincode);
+            }
+
+            // Real-time form validation
+            document.querySelectorAll('input[required], select[required]').forEach(field => {
+                field.addEventListener('blur', validateField);
+            });
+        }
+
+        function updateAuthElements() {
+            const authElements = document.querySelectorAll('.auth-required');
+            authElements.forEach(el => {
+                el.style.display = currentUser ? 'block' : 'none';
+            });
+        }
+
+        async function loadUserData() {
+            if (!currentUser || !app.db) return;
+
+            try {
+                // Load saved addresses
+                const addressesSnapshot = await app.db.collection('addresses')
+                    .where('userId', '==', currentUser.uid)
+                    .orderBy('isDefault', 'desc')
+                    .get();
+
+                savedAddresses = addressesSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+            } catch (error) {
+                console.error('Error loading user data:', error);
+            }
+        }
+
+        function prefillUserInfo() {
+            if (currentUser) {
+                // Prefill user information
+                if (currentUser.displayName) {
+                    document.getElementById('customerName').value = currentUser.displayName;
+                    document.getElementById('pickupName').value = currentUser.displayName;
+                }
+                
+                if (currentUser.phoneNumber) {
+                    document.getElementById('customerPhone').value = currentUser.phoneNumber;
+                    document.getElementById('pickupPhone').value = currentUser.phoneNumber;
+                }
+
+                // Use default address if available
+                const defaultAddress = savedAddresses.find(addr => addr.isDefault);
+                if (defaultAddress) {
+                    fillAddressFields(defaultAddress);
+                }
+            }
+        }
+
+        function fillAddressFields(address) {
+            document.getElementById('customerName').value = address.recipientName || '';
+            document.getElementById('customerPhone').value = address.recipientPhone || '';
+            document.getElementById('addressLine1').value = address.addressLine1 || '';
+            document.getElementById('addressLine2').value = address.addressLine2 || '';
+            document.getElementById('city').value = address.city || '';
+            document.getElementById('pincode').value = address.pincode || '';
+            document.getElementById('deliveryInstructions').value = address.deliveryInstructions || '';
+        }
+
+        function handleDeliveryTypeChange(e) {
+            const deliverySection = document.getElementById('deliverySection');
+            const pickupSection = document.getElementById('pickupSection');
+            const deliveryFeeRow = document.querySelector('.delivery-fee-row');
+            const estimatedTimeSpan = document.getElementById('estimatedTime');
+
+            if (e.target.value === 'delivery') {
+                deliverySection.style.display = 'block';
+                pickupSection.style.display = 'none';
+                deliveryFeeRow.style.display = 'flex';
+                estimatedTimeSpan.textContent = '30-45 minutes';
+            } else {
+                deliverySection.style.display = 'none';
+                pickupSection.style.display = 'block';
+                deliveryFeeRow.style.display = 'none';
+                estimatedTimeSpan.textContent = '20-30 minutes';
+            }
+
+            updateOrderTotals();
+        }
+
+        function handlePaymentMethodChange(e) {
+            const paymentDetails = document.getElementById('paymentDetails');
+            const upiFields = document.getElementById('upiFields');
+            const cardFields = document.getElementById('cardFields');
+
+            // Hide all payment fields first
+            paymentDetails.style.display = 'none';
+            upiFields.style.display = 'none';
+            cardFields.style.display = 'none';
+
+            // Show relevant fields based on selection
+            if (e.target.value === 'upi') {
+                paymentDetails.style.display = 'block';
+                upiFields.style.display = 'block';
+            } else if (e.target.value === 'card') {
+                paymentDetails.style.display = 'block';
+                cardFields.style.display = 'block';
+            }
+        }
+
+        function populateOrderSummary() {
+            const orderItems = document.getElementById('orderItems');
+            
+            if (!app.cart || app.cart.length === 0) {
+                orderItems.innerHTML = '<p class="empty-cart">No items in cart</p>';
+                return;
+            }
+
+            orderItems.innerHTML = app.cart.map(item => `
+                <div class="order-item">
+                    <img src="${item.image}" alt="${item.name}" class="item-image"
+                         onerror="this.src='https://via.placeholder.com/60x60/8B4513/FFFFFF?text=${encodeURIComponent(item.name.charAt(0))}'">
+                    <div class="item-details">
+                        <h4>${item.name}</h4>
+                        <div class="item-customization">
+                            ${item.customization ? formatCustomization(item.customization) : ''}
+                        </div>
+                        <div class="item-quantity">Qty: ${item.quantity}</div>
+                    </div>
+                    <div class="item-price">
+                        ₹${(item.finalPrice * item.quantity).toFixed(2)}
+                    </div>
+                </div>
+            `).join('');
+
+            updateOrderTotals();
+        }
+
+        function formatCustomization(customization) {
+            const parts = [];
+            if (customization.size && customization.size !== 'regular') {
+                parts.push(`Size: ${customization.size}`);
+            }
+            if (customization.spiceLevel) parts.push(`Spice: ${customization.spiceLevel}`);
+            if (customization.notes) parts.push(`Note: ${customization.notes}`);
+            return parts.join(', ');
+        }
+
+        function calculateSubtotal() {
+            return app.cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
+        }
+
+        function updateOrderTotals() {
+            const subtotal = calculateSubtotal();
+            const tax = subtotal * 0.12;
+            const isDelivery = document.querySelector('input[name="deliveryType"]:checked')?.value === 'delivery';
+            const deliveryFee = isDelivery && subtotal < 500 ? 40 : 0;
+            const discount = currentPromoCode ? calculateDiscount(subtotal, currentPromoCode) : 0;
+            const total = subtotal + tax + deliveryFee - discount;
+
+            // Update display
+            document.getElementById('orderSubtotal').textContent = subtotal.toFixed(2);
+            document.getElementById('orderTax').textContent = tax.toFixed(2);
+            document.getElementById('orderDeliveryFee').textContent = deliveryFee.toFixed(2);
+            document.getElementById('orderDiscount').textContent = discount.toFixed(2);
+            document.getElementById('orderTotal').textContent = total.toFixed(2);
+            document.getElementById('finalAmount').textContent = total.toFixed(2);
+
+            // Show/hide discount row
+            const discountRow = document.getElementById('discountRow');
+            if (discount > 0) {
+                discountRow.style.display = 'flex';
+            } else {
+                discountRow.style.display = 'none';
+            }
+
+            // Update delivery fee text
+            if (isDelivery && subtotal >= 500) {
+                document.getElementById('orderDeliveryFee').parentElement.innerHTML = 
+                    '<span>Delivery Fee: <small class="free-delivery">FREE</small></span><span>₹0.00</span>';
+            }
+        }
+
+        function updateEstimatedDeliveryTime() {
+            const now = new Date();
+            const hour = now.getHours();
+            const estimatedSpan = document.getElementById('estimatedTime');
+            
+            // Adjust time based on current hour and day
+            if (hour >= 12 && hour <= 14) {
+                estimatedSpan.textContent = '45-60 minutes'; // Lunch rush
+            } else if (hour >= 19 && hour <= 21) {
+                estimatedSpan.textContent = '45-60 minutes'; // Dinner rush
+            } else {
+                estimatedSpan.textContent = '30-45 minutes';
+            }
+        }
+
+        function showSavedAddresses() {
+            if (savedAddresses.length === 0) {
+                showToast('No saved addresses found', 'info');
+                return;
+            }
+
+            const modal = document.getElementById('savedAddressesModal');
+            const list = document.getElementById('savedAddressesList');
+
+            list.innerHTML = savedAddresses.map(address => `
+                <div class="saved-address-option" onclick="selectSavedAddress('${address.id}')">
+                    <div class="address-content">
+                        <div class="address-header">
+                            <strong>${address.type?.charAt(0).toUpperCase() + address.type?.slice(1) || 'Address'}</strong>
+                            ${address.isDefault ? '<span class="default-badge">Default</span>' : ''}
+                        </div>
+                        <div class="address-details">
+                            <p>${address.recipientName}</p>
+                            <p>${address.addressLine1}</p>
+                            ${address.addressLine2 ? `<p>${address.addressLine2}</p>` : ''}
+                            <p>${address.city} - ${address.pincode}</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            `).join('');
+
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSavedAddresses() {
+            document.getElementById('savedAddressesModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        function selectSavedAddress(addressId) {
+            const address = savedAddresses.find(addr => addr.id === addressId);
+            if (address) {
+                fillAddressFields(address);
+                closeSavedAddresses();
+                showToast('Address selected successfully', 'success');
+            }
+        }
+
+        function applyPromoCode() {
+            const promoCodeInput = document.getElementById('promoCode');
+            const promoMessage = document.getElementById('promoMessage');
+            const code = promoCodeInput.value.trim().toUpperCase();
+
+            if (!code) {
+                promoMessage.innerHTML = '<p class="error">Please enter a promo code</p>';
+                return;
+            }
+
+            // Simulate promo code validation (in real app, this would call backend)
+            const validPromoCodes = {
+                'WELCOME10': { type: 'percentage', value: 10, minOrder: 300 },
+                'SAVE50': { type: 'fixed', value: 50, minOrder: 500 },
+                'NEWUSER': { type: 'percentage', value: 15, minOrder: 200 }
+            };
+
+            const subtotal = calculateSubtotal();
+            const promoData = validPromoCodes[code];
+
+            if (!promoData) {
+                promoMessage.innerHTML = '<p class="error">Invalid promo code</p>';
+                currentPromoCode = null;
+            } else if (subtotal < promoData.minOrder) {
+                promoMessage.innerHTML = `<p class="error">Minimum order of ₹${promoData.minOrder} required</p>`;
+                currentPromoCode = null;
+            } else {
+                currentPromoCode = { code, ...promoData };
+                const discount = calculateDiscount(subtotal, currentPromoCode);
+                promoMessage.innerHTML = `<p class="success">Promo code applied! You saved ₹${discount.toFixed(2)}</p>`;
+                promoCodeInput.disabled = true;
+            }
+
+            updateOrderTotals();
+        }
+
+        function calculateDiscount(subtotal, promoCode) {
+            if (!promoCode) return 0;
+            
+            if (promoCode.type === 'percentage') {
+                return Math.min((subtotal * promoCode.value) / 100, subtotal * 0.5); // Max 50% discount
+            } else {
+                return Math.min(promoCode.value, subtotal);
+            }
+        }
+
+        // Form validation and formatting functions
+        function formatCardNumber(e) {
+            let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+            let formattedValue = value.match(/.{1,4}/g)?.join(' ');
+            e.target.value = formattedValue || value;
+        }
+
+        function formatExpiryDate(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2, 4);
+            }
+            e.target.value = value;
+        }
+
+        function validatePincode(e) {
+            const value = e.target.value.replace(/\D/g, '');
+            e.target.value = value.substring(0, 6);
+            
+            if (value.length === 6) {
+                // In real app, you'd validate PIN code and auto-fill city
+                console.log('Validating PIN code:', value);
+            }
+        }
+
+        function validateField(e) {
+            const field = e.target;
+            const value = field.value.trim();
+            
+            if (field.hasAttribute('required') && !value) {
+                field.classList.add('invalid');
+                return false;
+            } else {
+                field.classList.remove('invalid');
+            }
+
+            // Specific validations
+            if (field.type === 'email' && value && !isValidEmail(value)) {
+                field.classList.add('invalid');
+                return false;
+            }
+
+            if (field.type === 'tel' && value && !isValidPhone(value)) {
+                field.classList.add('invalid');
+                return false;
+            }
+
+            return true;
+        }
+
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function isValidPhone(phone) {
+            return /^[\+]?[0-9\s\-\(\)]{8,15}$/.test(phone);
+        }
+
+        async function handleCheckoutSubmission(e) {
+            e.preventDefault();
+
+            if (!validateCheckoutForm()) {
+                showToast('Please fill all required fields correctly', 'error');
+                return;
+            }
+
+            try {
+                showLoadingSpinner('Processing your order...');
+                
+                const orderData = collectOrderData();
+                const orderId = await submitOrder(orderData);
+                
+                // Clear cart
+                app.cart = [];
+                localStorage.removeItem('bellaNotteCart');
+                
+                // Redirect to success page
+                window.location.href = `order-success.html?orderId=${orderId}`;
+                
+            } catch (error) {
+                console.error('Order submission error:', error);
+                showToast('Failed to place order. Please try again.', 'error');
+            } finally {
+                hideLoadingSpinner();
+            }
+        }
+
+        function validateCheckoutForm() {
+            let isValid = true;
+            const deliveryType = document.querySelector('input[name="deliveryType"]:checked').value;
+            const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+
+            // Validate delivery information
+            if (deliveryType === 'delivery') {
+                const requiredFields = ['customerName', 'customerPhone', 'addressLine1', 'city', 'pincode'];
+                requiredFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (!validateField({ target: field })) {
+                        isValid = false;
+                    }
+                });
+            } else {
+                const requiredFields = ['pickupName', 'pickupPhone'];
+                requiredFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (!validateField({ target: field })) {
+                        isValid = false;
+                    }
+                });
+            }
+
+            // Validate payment information
+            if (paymentMethod === 'upi') {
+                const upiField = document.getElementById('upiId');
+                if (!upiField.value.trim()) {
+                    upiField.classList.add('invalid');
+                    isValid = false;
+                }
+            } else if (paymentMethod === 'card') {
+                const cardFields = ['cardNumber', 'expiryDate', 'cvv', 'cardName'];
+                cardFields.forEach(fieldId => {
+                    const field = document.getElementById(fieldId);
+                    if (!field.value.trim()) {
+                        field.classList.add('invalid');
+                        isValid = false;
+                    }
+                });
+            }
+
+            return isValid;
+        }
+
+        function collectOrderData() {
+            const deliveryType = document.querySelector('input[name="deliveryType"]:checked').value;
+            const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+            const subtotal = calculateSubtotal();
+            const tax = subtotal * 0.12;
+            const deliveryFee = deliveryType === 'delivery' && subtotal < 500 ? 40 : 0;
+            const discount = currentPromoCode ? calculateDiscount(subtotal, currentPromoCode) : 0;
+            const total = subtotal + tax + deliveryFee - discount;
+
+            const orderData = {
+                userId: currentUser?.uid || null,
+                items: app.cart.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    price: item.finalPrice,
+                    quantity: item.quantity,
+                    customization: item.customization || {}
+                })),
+                subtotal,
+                tax,
+                deliveryFee,
+                discount,
+                total,
+                deliveryType,
+                paymentMethod,
+                status: 'pending',
+                createdAt: new Date().toISOString()
+            };
+
+            // Add delivery information
+            if (deliveryType === 'delivery') {
+                orderData.deliveryInfo = {
+                    name: document.getElementById('customerName').value.trim(),
+                    phone: document.getElementById('customerPhone').value.trim(),
+                    addressLine1: document.getElementById('addressLine1').value.trim(),
+                    addressLine2: document.getElementById('addressLine2').value.trim(),
+                    city: document.getElementById('city').value.trim(),
+                    pincode: document.getElementById('pincode').value.trim(),
+                    instructions: document.getElementById('deliveryInstructions').value.trim()
+                };
+            } else {
+                orderData.pickupInfo = {
+                    name: document.getElementById('pickupName').value.trim(),
+                    phone: document.getElementById('pickupPhone').value.trim()
+                };
+            }
+
+            // Add payment information (never store sensitive data)
+            if (paymentMethod === 'upi') {
+                orderData.paymentInfo = {
+                    upiId: document.getElementById('upiId').value.trim()
+                };
+            } else if (paymentMethod === 'card') {
+                orderData.paymentInfo = {
+                    cardLast4: document.getElementById('cardNumber').value.replace(/\s/g, '').slice(-4),
+                    cardName: document.getElementById('cardName').value.trim()
+                };
+            }
+
+            // Add promo code info
+            if (currentPromoCode) {
+                orderData.promoCode = currentPromoCode.code;
+                orderData.discountAmount = discount;
+            }
+
+            // Add special notes
+            const notes = document.getElementById('orderNotes').value.trim();
+            if (notes) {
+                orderData.specialInstructions = notes;
+            }
+
+            return orderData;
+        }
+
+        async function submitOrder(orderData) {
+            if (app.db && app.firebaseReady) {
+                // Submit to Firestore
+                const docRef = await app.db.collection('orders').add({
+                    ...orderData,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                // Save address if requested
+                if (document.getElementById('saveAddress')?.checked && currentUser) {
+                    await saveDeliveryAddress(orderData.deliveryInfo);
+                }
+                
+                return docRef.id;
+            } else {
+                // Local storage fallback
+                const localOrders = JSON.parse(localStorage.getItem('localOrders') || '[]');
+                const orderId = 'local_' + Date.now();
+                orderData.id = orderId;
+                localOrders.push(orderData);
+                localStorage.setItem('localOrders', JSON.stringify(localOrders));
+                return orderId;
+            }
+        }
+
+        async function saveDeliveryAddress(deliveryInfo) {
+            if (!currentUser || !app.db) return;
+
+            try {
+                await app.db.collection('addresses').add({
+                    userId: currentUser.uid,
+                    type: 'other',
+                    recipientName: deliveryInfo.name,
+                    recipientPhone: deliveryInfo.phone,
+                    addressLine1: deliveryInfo.addressLine1,
+                    addressLine2: deliveryInfo.addressLine2,
+                    city: deliveryInfo.city,
+                    state: '', // Would be filled from form
+                    pincode: deliveryInfo.pincode,
+                    deliveryInstructions: deliveryInfo.instructions,
+                    isDefault: false,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (error) {
+                console.error('Error saving address:', error);
+            }
+        }
+
+        // Export functions for global access
+        window.showSavedAddresses = showSavedAddresses;
+        window.closeSavedAddresses = closeSavedAddresses;
+        window.selectSavedAddress = selectSavedAddress;
+        window.applyPromoCode = applyPromoCode;
+    </script>
 </body>
 </html>

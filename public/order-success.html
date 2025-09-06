@@ -1,140 +1,592 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Order Confirmation - Bella Notte</title>
-  <link rel="stylesheet" href="styles.css" />
-  <!-- FontAwesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmed - Bella Notte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
 </head>
 <body>
-
-  <!-- HEADER -->
-  <header>
+    <!-- Navigation -->
     <nav class="navbar">
-      <div class="logo">
-        <a href="index.html">Bella Notte</a>
-      </div>
-      <ul class="nav-links" id="navMenu">
-        <li><a href="index.html#home">Home</a></li>
-        <li><a href="index.html#menu">Menu</a></li>
-        <li><a href="index.html#reservations">Reservations</a></li>
-        <li><a href="contact.html">Contact</a></li>
-      </ul>
-      <div class="nav-actions">
-        <div class="cart-toggle" onclick="openCart()">
-          <i class="fas fa-shopping-cart"></i>
-          <span id="cartCount" class="cart-count hidden">0</span>
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-utensils"></i> Bella Notte
+            </a>
+            
+            <div class="checkout-progress">
+                <div class="progress-step completed">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Cart</span>
+                </div>
+                <div class="progress-step completed">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Checkout</span>
+                </div>
+                <div class="progress-step completed active">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Complete</span>
+                </div>
+            </div>
+
+            <div class="nav-actions">
+                <div class="user-dropdown">
+                    <button class="user-toggle" onclick="toggleUserMenu()">
+                        <i class="fas fa-user-circle" id="userIcon"></i>
+                        <span id="userGreeting">Account</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown"></div>
+                </div>
+            </div>
         </div>
-        <div class="user-toggle" onclick="toggleUserMenu()">
-          <i id="userIcon" class="fas fa-user"></i>
-          <span id="userGreeting">Account</span>
-          <div id="userDropdown" class="dropdown"></div>
-        </div>
-        <div class="mobile-toggle" onclick="toggleMobileMenu()">
-          <i class="fas fa-bars"></i>
-        </div>
-      </div>
     </nav>
-  </header>
 
-  <!-- MAIN -->
-  <main class="confirmation-page">
-    <section class="confirmation-container">
-      <h1><i class="fas fa-check-circle"></i> Thank You for Your Order!</h1>
-      <p>Your delicious meal is being prepared. You’ll receive updates shortly.</p>
+    <!-- Main Content -->
+    <main class="order-success-page">
+        <div class="container">
+            <!-- Success Header -->
+            <div class="success-header">
+                <div class="success-animation">
+                    <div class="checkmark-circle">
+                        <i class="fas fa-check"></i>
+                    </div>
+                </div>
+                <h1>Order Confirmed!</h1>
+                <p class="success-message">Thank you for your order. We're preparing your delicious meal right now!</p>
+            </div>
 
-      <div class="order-details">
-        <h2>Order Details</h2>
-        <p><strong>Order ID:</strong> <span id="orderIdDisplay">Loading...</span></p>
-        <div id="orderInfo">Fetching your order...</div>
-      </div>
+            <!-- Order Summary Card -->
+            <div class="order-summary-card">
+                <div class="order-header">
+                    <div class="order-number">
+                        <h2>Order #<span id="orderIdDisplay">Loading...</span></h2>
+                        <span class="order-status status-confirmed">Confirmed</span>
+                    </div>
+                    <div class="order-time" id="orderTime">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
 
-      <div class="confirmation-actions">
-        <a href="index.html" class="btn-primary">
-          <i class="fas fa-home"></i> Back to Home
-        </a>
-        <a href="checkout.html" class="btn-secondary">
-          <i class="fas fa-utensils"></i> Place Another Order
-        </a>
-      </div>
-    </section>
-  </main>
+                <div id="orderDetailsContainer" class="order-details-container">
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading your order details...</p>
+                    </div>
+                </div>
 
-  <footer>
-    <p>&copy; 2025 Bella Notte. All rights reserved.</p>
-  </footer>
+                <!-- Order Tracking -->
+                <div id="orderTracking" class="order-tracking" style="display: none;">
+                    <h3><i class="fas fa-route"></i> Order Status</h3>
+                    <div class="tracking-timeline">
+                        <div class="tracking-step active">
+                            <div class="step-icon">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="step-content">
+                                <h4>Order Confirmed</h4>
+                                <p id="confirmedTime">Just now</p>
+                            </div>
+                        </div>
+                        <div class="tracking-step" id="preparingStep">
+                            <div class="step-icon">
+                                <i class="fas fa-utensils"></i>
+                            </div>
+                            <div class="step-content">
+                                <h4>Preparing</h4>
+                                <p>We're cooking your meal</p>
+                            </div>
+                        </div>
+                        <div class="tracking-step" id="deliveryStep">
+                            <div class="step-icon">
+                                <i class="fas fa-truck"></i>
+                            </div>
+                            <div class="step-content">
+                                <h4 id="deliveryStepTitle">On the way</h4>
+                                <p id="deliveryStepDesc">Your order is being delivered</p>
+                            </div>
+                        </div>
+                        <div class="tracking-step" id="completedStep">
+                            <div class="step-icon">
+                                <i class="fas fa-home"></i>
+                            </div>
+                            <div class="step-content">
+                                <h4 id="completedStepTitle">Delivered</h4>
+                                <p>Enjoy your meal!</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="estimated-time">
+                        <i class="fas fa-clock"></i>
+                        <span>Estimated <span id="deliveryTypeText">delivery</span>: <span id="estimatedTime">30-45 minutes</span></span>
+                    </div>
+                </div>
 
-  <!-- FIREBASE SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js"></script>
+                <!-- Delivery Information -->
+                <div id="deliveryInfo" class="delivery-info" style="display: none;">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
 
-  <!-- SHARED SCRIPT -->
-  <script src="script.js"></script>
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <div class="primary-actions">
+                    <button onclick="window.location.href='order-history.html'" class="btn-primary auth-required" style="display: none;">
+                        <i class="fas fa-receipt"></i> View Order History
+                    </button>
+                    <button onclick="window.location.href='menu.html'" class="btn-primary">
+                        <i class="fas fa-utensils"></i> Order Again
+                    </button>
+                </div>
+                <div class="secondary-actions">
+                    <button onclick="window.location.href='index.html'" class="btn-secondary">
+                        <i class="fas fa-home"></i> Back to Home
+                    </button>
+                    <button onclick="shareOrder()" class="btn-outline">
+                        <i class="fas fa-share"></i> Share Order
+                    </button>
+                </div>
+            </div>
 
-  <!-- ORDER FETCH LOGIC -->
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const orderId = params.get("orderId");
-    document.getElementById("orderIdDisplay").textContent = orderId || "Unknown";
+            <!-- Support Information -->
+            <div class="support-info">
+                <div class="support-card">
+                    <h3><i class="fas fa-headset"></i> Need Help?</h3>
+                    <p>Our customer support team is here to help you</p>
+                    <div class="support-options">
+                        <a href="tel:+919608176539" class="support-option">
+                            <i class="fas fa-phone"></i>
+                            <span>Call Us: +91 9608176539</span>
+                        </a>
+                        <a href="mailto:support@bellanotte.com" class="support-option">
+                            <i class="fas fa-envelope"></i>
+                            <span>Email: support@bellanotte.com</span>
+                        </a>
+                        <a href="contact.html" class="support-option">
+                            <i class="fas fa-comment"></i>
+                            <span>Live Chat</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
 
-    async function loadOrder() {
-      const infoBox = document.getElementById("orderInfo");
+            <!-- Social Sharing -->
+            <div class="social-sharing" style="display: none;">
+                <h3>Share your order experience</h3>
+                <div class="social-buttons">
+                    <button onclick="shareOnFacebook()" class="social-btn facebook">
+                        <i class="fab fa-facebook"></i> Facebook
+                    </button>
+                    <button onclick="shareOnTwitter()" class="social-btn twitter">
+                        <i class="fab fa-twitter"></i> Twitter
+                    </button>
+                    <button onclick="shareOnWhatsApp()" class="social-btn whatsapp">
+                        <i class="fab fa-whatsapp"></i> WhatsApp
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
 
-      try {
-        if (orderId && window.firebase && window.firebaseConfig) {
-          if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-          const db = firebase.firestore();
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2024 Bella Notte. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
 
-          const doc = await db.collection("orders").doc(orderId).get();
-          if (doc.exists) {
-            const data = doc.data();
-            renderOrderDetails(data, infoBox);
-          } else {
-            infoBox.innerHTML = "<p class='error'>⚠️ Order not found.</p>";
-          }
-        } else {
-          // fallback: local orders
-          const raw = localStorage.getItem("localOrders");
-          if (raw) {
-            const orders = JSON.parse(raw);
-            const order = orders.find(o => o.id === orderId);
-            if (order) {
-              renderOrderDetails(order, infoBox);
-              return;
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Share Your Order</h3>
+                <button class="modal-close" onclick="closeShareModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="share-options">
+                    <button onclick="copyOrderLink()" class="share-option">
+                        <i class="fas fa-link"></i>
+                        <span>Copy Link</span>
+                    </button>
+                    <button onclick="shareViaEmail()" class="share-option">
+                        <i class="fas fa-envelope"></i>
+                        <span>Email</span>
+                    </button>
+                    <button onclick="shareOnWhatsApp()" class="share-option">
+                        <i class="fab fa-whatsapp"></i>
+                        <span>WhatsApp</span>
+                    </button>
+                </div>
+                <div class="share-text">
+                    <textarea id="shareText" readonly>I just ordered delicious Italian food from Bella Notte! 🍕🍝</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Order success page logic
+        let currentOrder = null;
+        let currentUser = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Get order ID from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderId = urlParams.get('orderId');
+            
+            if (!orderId) {
+                showNoOrderFound();
+                return;
             }
-          }
-          infoBox.innerHTML = "<p class='error'>⚠️ No order data available.</p>";
+
+            document.getElementById('orderIdDisplay').textContent = orderId.slice(-8);
+            
+            // Check authentication state
+            if (app.auth) {
+                app.auth.onAuthStateChanged((user) => {
+                    currentUser = user;
+                    updateAuthElements();
+                });
+            }
+
+            // Load and display order
+            await loadOrderDetails(orderId);
+            
+            // Start real-time tracking if needed
+            if (currentOrder && currentOrder.status !== 'delivered') {
+                startOrderTracking(orderId);
+            }
+        });
+
+        function updateAuthElements() {
+            const authElements = document.querySelectorAll('.auth-required');
+            authElements.forEach(el => {
+                el.style.display = currentUser ? 'block' : 'none';
+            });
         }
-      } catch (err) {
-        console.error("Order fetch error", err);
-        infoBox.innerHTML = "<p class='error'>⚠️ Error loading order details.</p>";
-      }
-    }
 
-    function renderOrderDetails(order, container) {
-      const itemsHtml = (order.items || [])
-        .map(i => `<li>${i.name} x ${i.qty} — ₹${(i.price * i.qty).toFixed(2)}</li>`)
-        .join("");
+        async function loadOrderDetails(orderId) {
+            try {
+                let order = null;
 
-      container.innerHTML = `
-        <p><strong>Customer:</strong> ${order.name || "N/A"}</p>
-        <p><strong>Phone:</strong> ${order.phone || "N/A"}</p>
-        <p><strong>Delivery:</strong> ${order.deliveryType || "N/A"}</p>
-        <p><strong>Payment:</strong> ${order.paymentMethod || "N/A"}</p>
-        <h3>Items</h3>
-        <ul>${itemsHtml}</ul>
-        <h3>Totals</h3>
-        <p>Subtotal: ₹${(order.subtotal || 0).toFixed(2)}</p>
-        <p>Tax: ₹${(order.tax || 0).toFixed(2)}</p>
-        <p>Delivery Fee: ₹${(order.deliveryFee || 0).toFixed(2)}</p>
-        <p><strong>Total: ₹${(order.total || 0).toFixed(2)}</strong></p>
-      `;
-    }
+                // Try to load from Firestore first
+                if (app.db && app.firebaseReady) {
+                    const doc = await app.db.collection('orders').doc(orderId).get();
+                    if (doc.exists) {
+                        order = { id: doc.id, ...doc.data() };
+                        // Convert Firestore timestamp
+                        if (order.createdAt && order.createdAt.toDate) {
+                            order.createdAt = order.createdAt.toDate().toISOString();
+                        }
+                    }
+                }
 
-    loadOrder();
-  </script>
+                // Fallback to localStorage
+                if (!order) {
+                    const localOrders = JSON.parse(localStorage.getItem('localOrders') || '[]');
+                    order = localOrders.find(o => o.id === orderId);
+                }
+
+                if (order) {
+                    currentOrder = order;
+                    renderOrderDetails(order);
+                    setupOrderTracking(order);
+                } else {
+                    showNoOrderFound();
+                }
+
+            } catch (error) {
+                console.error('Error loading order:', error);
+                showErrorState();
+            }
+        }
+
+        function renderOrderDetails(order) {
+            const container = document.getElementById('orderDetailsContainer');
+            
+            // Update order time
+            const orderTime = new Date(order.createdAt).toLocaleString();
+            document.getElementById('orderTime').innerHTML = `
+                <i class="fas fa-clock"></i> Ordered on ${orderTime}
+            `;
+
+            // Render order details
+            container.innerHTML = `
+                <div class="order-sections">
+                    <div class="order-section">
+                        <h3><i class="fas fa-shopping-bag"></i> Order Items</h3>
+                        <div class="order-items">
+                            ${(order.items || []).map(item => `
+                                <div class="order-item">
+                                    <div class="item-details">
+                                        <h4>${item.name}</h4>
+                                        <div class="item-meta">
+                                            <span class="quantity">Qty: ${item.quantity || item.qty}</span>
+                                            <span class="price">₹${((item.price || 0) * (item.quantity || item.qty || 1)).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="order-section">
+                        <h3><i class="fas fa-receipt"></i> Order Summary</h3>
+                        <div class="order-totals">
+                            <div class="total-row">
+                                <span>Subtotal:</span>
+                                <span>₹${(order.subtotal || 0).toFixed(2)}</span>
+                            </div>
+                            <div class="total-row">
+                                <span>Tax (12%):</span>
+                                <span>₹${(order.tax || 0).toFixed(2)}</span>
+                            </div>
+                            ${(order.deliveryFee || 0) > 0 ? `
+                                <div class="total-row">
+                                    <span>Delivery Fee:</span>
+                                    <span>₹${order.deliveryFee.toFixed(2)}</span>
+                                </div>
+                            ` : ''}
+                            ${(order.discount || 0) > 0 ? `
+                                <div class="total-row discount">
+                                    <span>Discount:</span>
+                                    <span>-₹${order.discount.toFixed(2)}</span>
+                                </div>
+                            ` : ''}
+                            <div class="total-row final-total">
+                                <span><strong>Total Paid:</strong></span>
+                                <span><strong>₹${(order.total || 0).toFixed(2)}</strong></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${order.deliveryInfo ? renderDeliveryInfo(order.deliveryInfo, order.deliveryType) : ''}
+                    ${order.pickupInfo ? renderPickupInfo(order.pickupInfo) : ''}
+
+                    <div class="order-section">
+                        <h3><i class="fas fa-credit-card"></i> Payment Information</h3>
+                        <div class="payment-details">
+                            <div class="payment-row">
+                                <span>Payment Method:</span>
+                                <span class="payment-method">${formatPaymentMethod(order.paymentMethod)}</span>
+                            </div>
+                            <div class="payment-row">
+                                <span>Payment Status:</span>
+                                <span class="payment-status status-${(order.paymentMethod === 'cod' ? 'cod' : 'paid')}">${order.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Paid'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDeliveryInfo(deliveryInfo, deliveryType) {
+            return `
+                <div class="order-section">
+                    <h3><i class="fas fa-map-marker-alt"></i> Delivery Information</h3>
+                    <div class="delivery-details">
+                        <div class="address-info">
+                            <p><strong>${deliveryInfo.name}</strong></p>
+                            <p><i class="fas fa-phone"></i> ${deliveryInfo.phone}</p>
+                            <div class="address">
+                                <p>${deliveryInfo.addressLine1}</p>
+                                ${deliveryInfo.addressLine2 ? `<p>${deliveryInfo.addressLine2}</p>` : ''}
+                                <p>${deliveryInfo.city} - ${deliveryInfo.pincode}</p>
+                            </div>
+                            ${deliveryInfo.instructions ? `
+                                <div class="delivery-instructions">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>${deliveryInfo.instructions}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderPickupInfo(pickupInfo) {
+            return `
+                <div class="order-section">
+                    <h3><i class="fas fa-store"></i> Pickup Information</h3>
+                    <div class="pickup-details">
+                        <p><strong>Customer:</strong> ${pickupInfo.name}</p>
+                        <p><strong>Phone:</strong> ${pickupInfo.phone}</p>
+                        <div class="restaurant-address">
+                            <h4>Pickup Location:</h4>
+                            <p><strong>Bella Notte Restaurant</strong></p>
+                            <p>123 Vittorio Emanuele Street, Mumbai</p>
+                            <p><i class="fas fa-phone"></i> +91 9608176539</p>
+                            <p><i class="fas fa-clock"></i> Open: 11:00 AM - 11:00 PM</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function setupOrderTracking(order) {
+            const trackingSection = document.getElementById('orderTracking');
+            trackingSection.style.display = 'block';
+
+            // Update delivery/pickup text
+            if (order.deliveryType === 'pickup') {
+                document.getElementById('deliveryStepTitle').textContent = 'Ready for Pickup';
+                document.getElementById('deliveryStepDesc').textContent = 'Your order is ready';
+                document.getElementById('completedStepTitle').textContent = 'Picked Up';
+                document.getElementById('deliveryTypeText').textContent = 'pickup';
+                document.getElementById('estimatedTime').textContent = '20-30 minutes';
+            }
+
+            // Update tracking steps based on order status
+            updateTrackingStatus(order.status || 'confirmed');
+        }
+
+        function updateTrackingStatus(status) {
+            const steps = document.querySelectorAll('.tracking-step');
+            
+            // Reset all steps
+            steps.forEach(step => step.classList.remove('active', 'completed'));
+
+            // Activate steps based on status
+            switch (status) {
+                case 'confirmed':
+                case 'pending':
+                    document.querySelector('.tracking-step').classList.add('active');
+                    break;
+                case 'preparing':
+                    document.querySelector('.tracking-step').classList.add('completed');
+                    document.getElementById('preparingStep').classList.add('active');
+                    break;
+                case 'out-for-delivery':
+                case 'ready-for-pickup':
+                    document.querySelector('.tracking-step').classList.add('completed');
+                    document.getElementById('preparingStep').classList.add('completed');
+                    document.getElementById('deliveryStep').classList.add('active');
+                    break;
+                case 'delivered':
+                case 'picked-up':
+                    steps.forEach(step => step.classList.add('completed'));
+                    document.getElementById('completedStep').classList.add('active');
+                    break;
+            }
+        }
+
+        function startOrderTracking(orderId) {
+            // In a real app, this would listen to real-time updates
+            // For demo purposes, we'll simulate status updates
+            setTimeout(() => {
+                updateTrackingStatus('preparing');
+                showToast('Your order is now being prepared!', 'info');
+            }, 30000); // 30 seconds
+
+            setTimeout(() => {
+                const status = currentOrder?.deliveryType === 'pickup' ? 'ready-for-pickup' : 'out-for-delivery';
+                updateTrackingStatus(status);
+                const message = currentOrder?.deliveryType === 'pickup' 
+                    ? 'Your order is ready for pickup!' 
+                    : 'Your order is on the way!';
+                showToast(message, 'success');
+            }, 120000); // 2 minutes
+        }
+
+        function formatPaymentMethod(method) {
+            const methods = {
+                'cod': 'Cash on Delivery',
+                'upi': 'UPI Payment',
+                'card': 'Credit/Debit Card',
+                'wallet': 'Digital Wallet'
+            };
+            return methods[method] || method;
+        }
+
+        function showNoOrderFound() {
+            const container = document.getElementById('orderDetailsContainer');
+            container.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Order Not Found</h3>
+                    <p>We couldn't find the order you're looking for.</p>
+                    <div class="error-actions">
+                        <button onclick="window.location.href='order-history.html'" class="btn-primary auth-required">
+                            View Order History
+                        </button>
+                        <button onclick="window.location.href='index.html'" class="btn-secondary">
+                            Back to Home
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showErrorState() {
+            const container = document.getElementById('orderDetailsContainer');
+            container.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <h3>Unable to Load Order</h3>
+                    <p>There was an error loading your order details. Please try again.</p>
+                    <button onclick="window.location.reload()" class="btn-primary">
+                        <i class="fas fa-refresh"></i> Retry
+                    </button>
+                </div>
+            `;
+        }
+
+        // Social sharing functions
+        function shareOrder() {
+            if (navigator.share && currentOrder) {
+                navigator.share({
+                    title: 'My Bella Notte Order',
+                    text: `I just ordered delicious Italian food from Bella Notte! Order #${currentOrder.id.slice(-8)}`,
+                    url: window.location.href
+                }).catch(console.error);
+            } else {
+                document.getElementById('shareModal').classList.add('show');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        function copyOrderLink() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                showToast('Order link copied to clipboard!', 'success');
+                closeShareModal();
+            }).catch(() => {
+                showToast('Failed to copy link', 'error');
+            });
+        }
+
+        function shareOnWhatsApp() {
+            const text = encodeURIComponent(`I just ordered delicious Italian food from Bella Notte! 🍕🍝 Order #${currentOrder?.id.slice(-8) || 'XXX'}`);
+            window.open(`https://wa.me/?text=${text}`, '_blank');
+        }
+
+        function shareViaEmail() {
+            const subject = encodeURIComponent('My Bella Notte Order');
+            const body = encodeURIComponent(`I just ordered delicious Italian food from Bella Notte!\n\nOrder #${currentOrder?.id.slice(-8) || 'XXX'}\n\nCheck them out: ${window.location.origin}`);
+            window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
+        }
+
+        // Export functions
+        window.shareOrder = shareOrder;
+        window.closeShareModal = closeShareModal;
+        window.copyOrderLink = copyOrderLink;
+        window.shareOnWhatsApp = shareOnWhatsApp;
+        window.shareViaEmail = shareViaEmail;
+    </script>
 </body>
 </html>

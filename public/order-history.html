@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order History - Bella Notte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-utensils"></i> Bella Notte
+            </a>
+            
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="menu.html" class="nav-link">Menu</a></li>
+                <li><a href="gallery.html" class="nav-link">Gallery</a></li>
+                <li><a href="reservations.html" class="nav-link">Reservations</a></li>
+                <li><a href="about.html" class="nav-link">About</a></li>
+                <li><a href="contact.html" class="nav-link">Contact</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <button class="cart-toggle" onclick="openCart()">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span id="cartCount" class="cart-count hidden">0</span>
+                </button>
+                
+                <div class="user-dropdown">
+                    <button class="user-toggle" onclick="toggleUserMenu()">
+                        <i class="fas fa-user-circle" id="userIcon"></i>
+                        <span id="userGreeting">Account</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown"></div>
+                </div>
+                
+                <button class="mobile-toggle" onclick="toggleMobileMenu()">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Cart Sidebar -->
+    <div id="cartSidebar" class="cart-sidebar">
+        <div class="cart-header">
+            <h3><i class="fas fa-shopping-cart"></i> Your Order</h3>
+            <button class="close-cart" onclick="closeCart()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cart-content">
+            <div id="cartItems" class="cart-items"></div>
+            <div class="cart-summary">
+                <div class="subtotal">
+                    <span>Subtotal: ₹<span id="cartSubtotal">0</span></span>
+                </div>
+                <div class="tax">
+                    <span>Tax (12%): ₹<span id="cartTax">0</span></span>
+                </div>
+                <div class="total">
+                    <strong>Total: ₹<span id="cartTotal">0</span></strong>
+                </div>
+                <button class="checkout-btn" onclick="proceedToCheckout()" disabled>
+                    <i class="fas fa-credit-card"></i> Proceed to Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="cartOverlay" class="cart-overlay" onclick="closeCart()"></div>
+
+    <!-- Main Content -->
+    <main class="order-history-page">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <div class="breadcrumb">
+                    <a href="my-account.html"><i class="fas fa-user"></i> My Account</a>
+                    <span class="separator">/</span>
+                    <span class="current">Order History</span>
+                </div>
+                <h1><i class="fas fa-receipt"></i> Order History</h1>
+                <p>Track your orders and reorder your favorite meals</p>
+            </div>
+
+            <!-- Order Filters -->
+            <div class="order-filters">
+                <div class="filter-group">
+                    <label for="statusFilter">Status:</label>
+                    <select id="statusFilter" onchange="filterOrders()">
+                        <option value="all">All Orders</option>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="preparing">Preparing</option>
+                        <option value="out-for-delivery">Out for Delivery</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="dateRange">Date Range:</label>
+                    <select id="dateRange" onchange="filterOrders()">
+                        <option value="all">All Time</option>
+                        <option value="last-week">Last Week</option>
+                        <option value="last-month">Last Month</option>
+                        <option value="last-3months">Last 3 Months</option>
+                    </select>
+                </div>
+
+                <div class="search-group">
+                    <input type="text" id="orderSearch" placeholder="Search orders..." onkeyup="debounceSearch(event)">
+                    <i class="fas fa-search"></i>
+                </div>
+            </div>
+
+            <!-- Orders List -->
+            <div class="orders-container">
+                <div id="ordersList" class="orders-list">
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading your orders...</p>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div id="ordersPagination" class="pagination hidden">
+                    <button id="prevPage" onclick="changePage(-1)" disabled>
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <span id="pageInfo">Page 1 of 1</span>
+                    <button id="nextPage" onclick="changePage(1)" disabled>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Order Details Modal -->
+    <div id="orderDetailsModal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3>Order Details</h3>
+                <button class="modal-close" onclick="closeOrderDetails()">&times;</button>
+            </div>
+            <div class="modal-body" id="orderDetailsContent">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Reorder Confirmation Modal -->
+    <div id="reorderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Reorder Items</h3>
+                <button class="modal-close" onclick="closeReorderModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Add these items to your cart?</p>
+                <div id="reorderItemsList" class="reorder-items"></div>
+                <div class="unavailable-items" id="unavailableItems" style="display: none;">
+                    <h4>Unavailable Items</h4>
+                    <p>The following items are currently unavailable:</p>
+                    <div id="unavailableItemsList"></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button onclick="closeReorderModal()" class="btn-secondary">Cancel</button>
+                <button onclick="confirmReorder()" class="btn-primary" id="confirmReorderBtn">
+                    Add to Cart
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3><i class="fas fa-utensils"></i> Bella Notte</h3>
+                    <p>Authentic Italian cuisine delivered to your doorstep.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="menu.html">Menu</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Bella Notte. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+        // Order History Page Logic
+        let currentUser = null;
+        let allOrders = [];
+        let filteredOrders = [];
+        let currentPage = 1;
+        let ordersPerPage = 10;
+        let searchTimeout = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (app.auth) {
+                app.auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        currentUser = user;
+                        await loadOrders();
+                    } else {
+                        window.location.href = 'index.html';
+                    }
+                });
+            } else {
+                window.location.href = 'index.html';
+            }
+        });
+
+        async function loadOrders() {
+            try {
+                if (app.db && currentUser) {
+                    const ordersSnapshot = await app.db.collection('orders')
+                        .where('userId', '==', currentUser.uid)
+                        .orderBy('createdAt', 'desc')
+                        .get();
+
+                    allOrders = ordersSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt)
+                    }));
+                } else {
+                    // Load from localStorage as fallback
+                    const localOrders = JSON.parse(localStorage.getItem('localOrders') || '[]');
+                    allOrders = localOrders.filter(order => order.userId === currentUser?.uid || !order.userId);
+                }
+
+                filteredOrders = [...allOrders];
+                displayOrders();
+                updatePagination();
+                
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                document.getElementById('ordersList').innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Unable to load orders</h3>
+                        <p>Please try refreshing the page</p>
+                    </div>
+                `;
+            }
+        }
+
+        function displayOrders() {
+            const ordersList = document.getElementById('ordersList');
+            
+            if (filteredOrders.length === 0) {
+                ordersList.innerHTML = `
+                    <div class="no-orders">
+                        <i class="fas fa-receipt"></i>
+                        <h3>No orders found</h3>
+                        <p>You haven't placed any orders yet or no orders match your filters.</p>
+                        <a href="menu.html" class="btn-primary">Start Ordering</a>
+                    </div>
+                `;
+                return;
+            }
+
+            const start = (currentPage - 1) * ordersPerPage;
+            const end = start + ordersPerPage;
+            const ordersToShow = filteredOrders.slice(start, end);
+
+            ordersList.innerHTML = ordersToShow.map(renderOrderCard).join('');
+        }
+
+        function renderOrderCard(order) {
+            const statusClass = `status-${order.status?.toLowerCase() || 'unknown'}`;
+            const canCancel = order.status === 'pending' || order.status === 'confirmed';
+            const canReorder = order.status === 'delivered';
+
+            return `
+                <div class="order-card">
+                    <div class="order-header">
+                        <div class="order-info">
+                            <h3>Order #${order.id.slice(-8)}</h3>
+                            <p class="order-date">${formatDate(order.createdAt)}</p>
+                        </div>
+                        <div class="order-status">
+                            <span class="status-badge ${statusClass}">
+                                ${order.status || 'Unknown'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="order-summary">
+                        <div class="order-items">
+                            <p><strong>${order.items?.length || 0} items</strong></p>
+                            <div class="item-preview">
+                                ${(order.items || []).slice(0, 3).map(item => 
+                                    `<span class="item-name">${item.name} x${item.qty}</span>`
+                                ).join(', ')}
+                                ${order.items?.length > 3 ? ` and ${order.items.length - 3} more...` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="order-total">
+                            <span class="total-amount">₹${order.total?.toFixed(2) || '0.00'}</span>
+                            <span class="payment-method">${order.paymentMethod || 'N/A'}</span>
+                        </div>
+                    </div>
+
+                    <div class="order-actions">
+                        <button onclick="viewOrderDetails('${order.id}')" class="btn-secondary">
+                            <i class="fas fa-eye"></i> View Details
+                        </button>
+                        
+                        ${canReorder ? `
+                            <button onclick="initiateReorder('${order.id}')" class="btn-primary">
+                                <i class="fas fa-redo"></i> Reorder
+                            </button>
+                        ` : ''}
+                        
+                        ${order.status === 'delivered' ? `
+                            <button onclick="rateOrder('${order.id}')" class="btn-outline">
+                                <i class="fas fa-star"></i> Rate
+                            </button>
+                        ` : ''}
+                        
+                        ${canCancel ? `
+                            <button onclick="cancelOrder('${order.id}')" class="btn-danger">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        ` : ''}
+                    </div>
+                    
+                    ${order.trackingInfo ? `
+                        <div class="order-tracking">
+                            <div class="tracking-progress">
+                                <div class="progress-step ${order.status === 'confirmed' || order.status === 'preparing' || order.status === 'out-for-delivery' || order.status === 'delivered' ? 'completed' : ''}">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span>Confirmed</span>
+                                </div>
+                                <div class="progress-step ${order.status === 'preparing' || order.status === 'out-for-delivery' || order.status === 'delivered' ? 'completed' : ''}">
+                                    <i class="fas fa-utensils"></i>
+                                    <span>Preparing</span>
+                                </div>
+                                <div class="progress-step ${order.status === 'out-for-delivery' || order.status === 'delivered' ? 'completed' : ''}">
+                                    <i class="fas fa-truck"></i>
+                                    <span>On the way</span>
+                                </div>
+                                <div class="progress-step ${order.status === 'delivered' ? 'completed' : ''}">
+                                    <i class="fas fa-home"></i>
+                                    <span>Delivered</span>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function formatDate(date) {
+            return new Intl.DateTimeFormat('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            }).format(date);
+        }
+
+        function filterOrders() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const dateRange = document.getElementById('dateRange').value;
+            const searchTerm = document.getElementById('orderSearch').value.toLowerCase();
+
+            filteredOrders = allOrders.filter(order => {
+                let matches = true;
+
+                // Status filter
+                if (statusFilter !== 'all' && order.status !== statusFilter) {
+                    matches = false;
+                }
+
+                // Date range filter
+                if (dateRange !== 'all') {
+                    const orderDate = new Date(order.createdAt);
+                    const now = new Date();
+                    const cutoff = new Date(now);
+
+                    switch (dateRange) {
+                        case 'last-week':
+                            cutoff.setDate(now.getDate() - 7);
+                            break;
+                        case 'last-month':
+                            cutoff.setMonth(now.getMonth() - 1);
+                            break;
+                        case 'last-3months':
+                            cutoff.setMonth(now.getMonth() - 3);
+                            break;
+                    }
+
+                    if (orderDate < cutoff) {
+                        matches = false;
+                    }
+                }
+
+                // Search filter
+                if (searchTerm && matches) {
+                    const searchFields = [
+                        order.id,
+                        order.status,
+                        ...(order.items || []).map(item => item.name)
+                    ].join(' ').toLowerCase();
+                    
+                    if (!searchFields.includes(searchTerm)) {
+                        matches = false;
+                    }
+                }
+
+                return matches;
+            });
+
+            currentPage = 1;
+            displayOrders();
+            updatePagination();
+        }
+
+        function debounceSearch(event) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                filterOrders();
+            }, 300);
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+            const pagination = document.getElementById('ordersPagination');
+            
+            if (totalPages <= 1) {
+                pagination.classList.add('hidden');
+                return;
+            }
+
+            pagination.classList.remove('hidden');
+            document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+        }
+
+        function changePage(delta) {
+            const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
+            const newPage = currentPage + delta;
+            
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                displayOrders();
+                updatePagination();
+            }
+        }
+
+        async function viewOrderDetails(orderId) {
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order) return;
+
+            const modal = document.getElementById('orderDetailsModal');
+            const content = document.getElementById('orderDetailsContent');
+
+            content.innerHTML = `
+                <div class="order-details">
+                    <div class="details-header">
+                        <h2>Order #${order.id.slice(-8)}</h2>
+                        <span class="status-badge status-${order.status?.toLowerCase()}">${order.status}</span>
+                    </div>
+
+                    <div class="details-grid">
+                        <div class="detail-section">
+                            <h3><i class="fas fa-info-circle"></i> Order Information</h3>
+                            <div class="detail-row">
+                                <span>Order Date:</span>
+                                <span>${formatDate(order.createdAt)}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Payment Method:</span>
+                                <span>${order.paymentMethod || 'N/A'}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Delivery Type:</span>
+                                <span>${order.deliveryType || 'Delivery'}</span>
+                            </div>
+                        </div>
+
+                        <div class="detail-section">
+                            <h3><i class="fas fa-map-marker-alt"></i> Delivery Address</h3>
+                            <div class="address-info">
+                                ${order.name ? `<p><strong>${order.name}</strong></p>` : ''}
+                                ${order.phone ? `<p><i class="fas fa-phone"></i> ${order.phone}</p>` : ''}
+                                ${order.addressLine ? `<p>${order.addressLine}</p>` : ''}
+                                ${order.city ? `<p>${order.city} - ${order.pincode || ''}</p>` : ''}
+                                ${order.instructions ? `<p class="instructions"><i class="fas fa-sticky-note"></i> ${order.instructions}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3><i class="fas fa-shopping-bag"></i> Order Items</h3>
+                        <div class="items-list">
+                            ${(order.items || []).map(item => `
+                                <div class="item-row">
+                                    <div class="item-info">
+                                        <span class="item-name">${item.name}</span>
+                                        <span class="item-quantity">x${item.qty}</span>
+                                    </div>
+                                    <span class="item-price">₹${(item.price * item.qty).toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3><i class="fas fa-receipt"></i> Order Summary</h3>
+                        <div class="order-totals">
+                            <div class="total-row">
+                                <span>Subtotal:</span>
+                                <span>₹${order.subtotal?.toFixed(2) || '0.00'}</span>
+                            </div>
+                            <div class="total-row">
+                                <span>Tax (12%):</span>
+                                <span>₹${order.tax?.toFixed(2) || '0.00'}</span>
+                            </div>
+                            <div class="total-row">
+                                <span>Delivery Fee:</span>
+                                <span>₹${order.deliveryFee?.toFixed(2) || '0.00'}</span>
+                            </div>
+                            <div class="total-row final-total">
+                                <span><strong>Total:</strong></span>
+                                <span><strong>₹${order.total?.toFixed(2) || '0.00'}</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeOrderDetails() {
+            document.getElementById('orderDetailsModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+        }
+
+        async function initiateReorder(orderId) {
+            const order = allOrders.find(o => o.id === orderId);
+            if (!order || !order.items) return;
+
+            // Check item availability
+            const availableItems = [];
+            const unavailableItems = [];
+
+            for (const orderItem of order.items) {
+                const menuItem = app.menu.find(m => m.id === orderItem.id);
+                if (menuItem && menuItem.isAvailable) {
+                    availableItems.push({
+                        ...orderItem,
+                        currentPrice: menuItem.price,
+                        priceChanged: menuItem.price !== orderItem.price
+                    });
+                } else {
+                    unavailableItems.push(orderItem);
+                }
+            }
+
+            // Show reorder modal
+            showReorderModal(availableItems, unavailableItems);
+        }
+
+        function showReorderModal(availableItems, unavailableItems) {
+            const modal = document.getElementById('reorderModal');
+            const itemsList = document.getElementById('reorderItemsList');
+            const unavailableSection = document.getElementById('unavailableItems');
+            const unavailableList = document.getElementById('unavailableItemsList');
+
+            // Show available items
+            itemsList.innerHTML = availableItems.map(item => `
+                <div class="reorder-item">
+                    <div class="item-info">
+                        <span class="item-name">${item.name}</span>
+                        <span class="item-quantity">x${item.qty}</span>
+                        ${item.priceChanged ? `
+                            <div class="price-change">
+                                <span class="old-price">₹${item.price}</span>
+                                <span class="new-price">₹${item.currentPrice}</span>
+                            </div>
+                        ` : `<span class="item-price">₹${item.currentPrice}</span>`}
+                    </div>
+                </div>
+            `).join('');
+
+            // Show unavailable items if any
+            if (unavailableItems.length > 0) {
+                unavailableSection.style.display = 'block';
+                unavailableList.innerHTML = unavailableItems.map(item => `
+                    <div class="unavailable-item">
+                        <span class="item-name">${item.name}</span>
+                        <span class="unavailable-badge">Not Available</span>
+                    </div>
+                `).join('');
+            } else {
+                unavailableSection.style.display = 'none';
+            }
+
+            // Store items for confirmation
+            window.reorderItems = availableItems;
+
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeReorderModal() {
+            document.getElementById('reorderModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+            window.reorderItems = null;
+        }
+
+        function confirmReorder() {
+            if (!window.reorderItems || window.reorderItems.length === 0) {
+                showToast('No items to add', 'warning');
+                return;
+            }
+
+            // Add items to cart
+            let addedCount = 0;
+            window.reorderItems.forEach(item => {
+                for (let i = 0; i < item.qty; i++) {
+                    addToCart(item.id);
+                    addedCount++;
+                }
+            });
+
+            closeReorderModal();
+            showToast(`${addedCount} items added to cart!`, 'success');
+            
+            // Open cart to show added items
+            setTimeout(openCart, 500);
+        }
+
+        async function cancelOrder(orderId) {
+            if (!confirm('Are you sure you want to cancel this order? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                if (app.db && currentUser) {
+                    await app.db.collection('orders').doc(orderId).update({
+                        status: 'cancelled',
+                        cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        cancelledBy: 'customer'
+                    });
+                } else {
+                    // Update local storage
+                    const localOrders = JSON.parse(localStorage.getItem('localOrders') || '[]');
+                    const orderIndex = localOrders.findIndex(o => o.id === orderId);
+                    if (orderIndex !== -1) {
+                        localOrders[orderIndex].status = 'cancelled';
+                        localStorage.setItem('localOrders', JSON.stringify(localOrders));
+                    }
+                }
+
+                showToast('Order cancelled successfully', 'success');
+                await loadOrders(); // Reload orders
+                
+            } catch (error) {
+                console.error('Error cancelling order:', error);
+                showToast('Failed to cancel order', 'error');
+            }
+        }
+
+        function rateOrder(orderId) {
+            // For now, show a placeholder message
+            showToast('Rating feature coming soon!', 'info');
+            // In the future, this would open a rating modal
+        }
+
+        // Export functions for global access
+        window.viewOrderDetails = viewOrderDetails;
+        window.closeOrderDetails = closeOrderDetails;
+        window.initiateReorder = initiateReorder;
+        window.closeReorderModal = closeReorderModal;
+        window.confirmReorder = confirmReorder;
+        window.cancelOrder = cancelOrder;
+        window.rateOrder = rateOrder;
+        window.filterOrders = filterOrders;
+        window.debounceSearch = debounceSearch;
+        window.changePage = changePage;
+    </script>
+</body>
+</html>

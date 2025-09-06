@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Addresses - Bella Notte</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <i class="fas fa-utensils"></i> Bella Notte
+            </a>
+            
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="menu.html" class="nav-link">Menu</a></li>
+                <li><a href="gallery.html" class="nav-link">Gallery</a></li>
+                <li><a href="reservations.html" class="nav-link">Reservations</a></li>
+                <li><a href="about.html" class="nav-link">About</a></li>
+                <li><a href="contact.html" class="nav-link">Contact</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <button class="cart-toggle" onclick="openCart()">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span id="cartCount" class="cart-count hidden">0</span>
+                </button>
+                
+                <div class="user-dropdown">
+                    <button class="user-toggle" onclick="toggleUserMenu()">
+                        <i class="fas fa-user-circle" id="userIcon"></i>
+                        <span id="userGreeting">Account</span>
+                    </button>
+                    <div class="dropdown-menu" id="userDropdown"></div>
+                </div>
+                
+                <button class="mobile-toggle" onclick="toggleMobileMenu()">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Cart Sidebar -->
+    <div id="cartSidebar" class="cart-sidebar">
+        <div class="cart-header">
+            <h3><i class="fas fa-shopping-cart"></i> Your Order</h3>
+            <button class="close-cart" onclick="closeCart()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="cart-content">
+            <div id="cartItems" class="cart-items"></div>
+            <div class="cart-summary">
+                <div class="subtotal">
+                    <span>Subtotal: ₹<span id="cartSubtotal">0</span></span>
+                </div>
+                <div class="tax">
+                    <span>Tax (12%): ₹<span id="cartTax">0</span></span>
+                </div>
+                <div class="total">
+                    <strong>Total: ₹<span id="cartTotal">0</span></strong>
+                </div>
+                <button class="checkout-btn" onclick="proceedToCheckout()" disabled>
+                    <i class="fas fa-credit-card"></i> Proceed to Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="cartOverlay" class="cart-overlay" onclick="closeCart()"></div>
+
+    <!-- Main Content -->
+    <main class="addresses-page">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <div class="breadcrumb">
+                    <a href="my-account.html"><i class="fas fa-user"></i> My Account</a>
+                    <span class="separator">/</span>
+                    <span class="current">Delivery Addresses</span>
+                </div>
+                <div class="header-content">
+                    <div class="header-info">
+                        <h1><i class="fas fa-map-marker-alt"></i> Delivery Addresses</h1>
+                        <p>Manage your saved delivery addresses for faster checkout</p>
+                    </div>
+                    <button onclick="showAddAddressModal()" class="btn-primary">
+                        <i class="fas fa-plus"></i> Add New Address
+                    </button>
+                </div>
+            </div>
+
+            <!-- Addresses List -->
+            <div class="addresses-container">
+                <div id="addressesList" class="addresses-list">
+                    <div class="loading-placeholder">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading your addresses...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add/Edit Address Modal -->
+    <div id="addressModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="addressModalTitle">Add New Address</h3>
+                <button class="modal-close" onclick="closeAddressModal()">&times;</button>
+            </div>
+            <form id="addressForm" class="modal-body">
+                <input type="hidden" id="addressId" value="">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="addressType">Address Type *</label>
+                        <select id="addressType" required>
+                            <option value="">Select Type</option>
+                            <option value="home">Home</option>
+                            <option value="work">Work</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="addressLabel">Label</label>
+                        <input type="text" id="addressLabel" placeholder="e.g., Mom's House, Office">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="recipientName">Recipient Name *</label>
+                    <input type="text" id="recipientName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="recipientPhone">Phone Number *</label>
+                    <input type="tel" id="recipientPhone" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="addressLine1">Address Line 1 *</label>
+                    <input type="text" id="addressLine1" required placeholder="House/Flat number, Building name">
+                </div>
+
+                <div class="form-group">
+                    <label for="addressLine2">Address Line 2</label>
+                    <input type="text" id="addressLine2" placeholder="Street name, Area">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="city">City *</label>
+                        <input type="text" id="city" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="state">State *</label>
+                        <input type="text" id="state" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="pincode">PIN Code *</label>
+                        <input type="text" id="pincode" required pattern="[0-9]{6}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="landmark">Landmark</label>
+                    <input type="text" id="landmark" placeholder="Near famous landmark">
+                </div>
+
+                <div class="form-group">
+                    <label for="deliveryInstructions">Delivery Instructions</label>
+                    <textarea id="deliveryInstructions" rows="3" placeholder="Special instructions for delivery"></textarea>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="isDefault">
+                        <span class="checkmark"></span>
+                        Set as default address
+                    </label>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" onclick="closeAddressModal()" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary" id="saveAddressBtn">
+                        <i class="fas fa-save"></i> Save Address
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header">
+                <h3>Delete Address</h3>
+                <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this address? This action cannot be undone.</p>
+                <div class="modal-actions">
+                    <button onclick="closeDeleteModal()" class="btn-secondary">Cancel</button>
+                    <button onclick="confirmDeleteAddress()" class="btn-danger" id="confirmDeleteBtn">
+                        <i class="fas fa-trash"></i> Delete Address
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3><i class="fas fa-utensils"></i> Bella Notte</h3>
+                    <p>Authentic Italian cuisine delivered to your doorstep.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="menu.html">Menu</a></li>
+                        <li><a href="contact.html">Contact</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Bella Notte. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+        // Address Management Logic
+        let currentUser = null;
+        let userAddresses = [];
+        let editingAddressId = null;
+        let deletingAddressId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (app.auth) {
+                app.auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        currentUser = user;
+                        await loadAddresses();
+                    } else {
+                        window.location.href = 'index.html';
+                    }
+                });
+            } else {
+                window.location.href = 'index.html';
+            }
+
+            // Bind form submission
+            document.getElementById('addressForm').addEventListener('submit', handleAddressSubmit);
+        });
+
+        async function loadAddresses() {
+            try {
+                if (app.db && currentUser) {
+                    const addressesSnapshot = await app.db.collection('addresses')
+                        .where('userId', '==', currentUser.uid)
+                        .orderBy('isDefault', 'desc')
+                        .orderBy('createdAt', 'desc')
+                        .get();
+
+                    userAddresses = addressesSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                } else {
+                    // Load from localStorage as fallback
+                    const localAddresses = JSON.parse(localStorage.getItem('userAddresses') || '[]');
+                    userAddresses = localAddresses.filter(addr => addr.userId === currentUser?.uid);
+                }
+
+                displayAddresses();
+                
+            } catch (error) {
+                console.error('Error loading addresses:', error);
+                document.getElementById('addressesList').innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Unable to load addresses</h3>
+                        <p>Please try refreshing the page</p>
+                    </div>
+                `;
+            }
+        }
+
+        function displayAddresses() {
+            const addressesList = document.getElementById('addressesList');
+            
+            if (userAddresses.length === 0) {
+                addressesList.innerHTML = `
+                    <div class="no-addresses">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <h3>No addresses saved</h3>
+                        <p>Add your first delivery address to get started!</p>
+                        <button onclick="showAddAddressModal()" class="btn-primary">
+                            <i class="fas fa-plus"></i> Add New Address
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            addressesList.innerHTML = userAddresses.map(renderAddressCard).join('');
+        }
+
+        function renderAddressCard(address) {
+            const typeIcons = {
+                home: 'fas fa-home',
+                work: 'fas fa-building',
+                other: 'fas fa-map-marker-alt'
+            };
+
+            return `
+                <div class="address-card ${address.isDefault ? 'default-address' : ''}">
+                    <div class="address-header">
+                        <div class="address-type">
+                            <i class="${typeIcons[address.type] || 'fas fa-map-marker-alt'}"></i>
+                            <span class="type-label">${address.type?.charAt(0).toUpperCase() + address.type?.slice(1) || 'Address'}</span>
+                            ${address.label ? `<span class="address-label">• ${address.label}</span>` : ''}
+                            ${address.isDefault ? '<span class="default-badge">Default</span>' : ''}
+                        </div>
+                        <div class="address-actions">
+                            <button onclick="editAddress('${address.id}')" class="action-btn edit-btn" title="Edit Address">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            ${!address.isDefault ? `
+                                <button onclick="setDefaultAddress('${address.id}')" class="action-btn default-btn" title="Set as Default">
+                                    <i class="fas fa-star"></i>
+                                </button>
+                            ` : ''}
+                            <button onclick="showDeleteModal('${address.id}')" class="action-btn delete-btn" title="Delete Address">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="address-content">
+                        <div class="recipient-info">
+                            <strong>${address.recipientName}</strong>
+                            <span class="phone"><i class="fas fa-phone"></i> ${address.recipientPhone}</span>
+                        </div>
+                        
+                        <div class="address-text">
+                            <p>${address.addressLine1}</p>
+                            ${address.addressLine2 ? `<p>${address.addressLine2}</p>` : ''}
+                            <p>${address.city}, ${address.state} - ${address.pincode}</p>
+                            ${address.landmark ? `<p class="landmark"><i class="fas fa-map-pin"></i> Near ${address.landmark}</p>` : ''}
+                        </div>
+
+                        ${address.deliveryInstructions ? `
+                            <div class="delivery-instructions">
+                                <i class="fas fa-info-circle"></i>
+                                <span>${address.deliveryInstructions}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function showAddAddressModal() {
+            document.getElementById('addressModalTitle').textContent = 'Add New Address';
+            document.getElementById('saveAddressBtn').innerHTML = '<i class="fas fa-plus"></i> Add Address';
+            editingAddressId = null;
+            resetAddressForm();
+            document.getElementById('addressModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function editAddress(addressId) {
+            const address = userAddresses.find(a => a.id === addressId);
+            if (!address) return;
+
+            document.getElementById('addressModalTitle').textContent = 'Edit Address';
+            document.getElementById('saveAddressBtn').innerHTML = '<i class="fas fa-save"></i> Update Address';
+            editingAddressId = addressId;
+
+            // Populate form with address data
+            document.getElementById('addressId').value = address.id;
+            document.getElementById('addressType').value = address.type || '';
+            document.getElementById('addressLabel').value = address.label || '';
+            document.getElementById('recipientName').value = address.recipientName || '';
+            document.getElementById('recipientPhone').value = address.recipientPhone || '';
+            document.getElementById('addressLine1').value = address.addressLine1 || '';
+            document.getElementById('addressLine2').value = address.addressLine2 || '';
+            document.getElementById('city').value = address.city || '';
+            document.getElementById('state').value = address.state || '';
+            document.getElementById('pincode').value = address.pincode || '';
+            document.getElementById('landmark').value = address.landmark || '';
+            document.getElementById('deliveryInstructions').value = address.deliveryInstructions || '';
+            document.getElementById('isDefault').checked = address.isDefault || false;
+
+            document.getElementById('addressModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeAddressModal() {
+            document.getElementById('addressModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+            resetAddressForm();
+            editingAddressId = null;
+        }
+
+        function resetAddressForm() {
+            document.getElementById('addressForm').reset();
+            document.getElementById('addressId').value = '';
+            
+            // Clear any validation styles
+            document.querySelectorAll('.form-group input, .form-group select, .form-group textarea').forEach(field => {
+                field.classList.remove('invalid');
+            });
+        }
+
+        async function handleAddressSubmit(e) {
+            e.preventDefault();
+
+            if (!validateAddressForm()) {
+                return;
+            }
+
+            const addressData = collectAddressData();
+
+            try {
+                showLoadingSpinner(editingAddressId ? 'Updating address...' : 'Saving address...');
+
+                if (editingAddressId) {
+                    await updateAddress(editingAddressId, addressData);
+                } else {
+                    await addAddress(addressData);
+                }
+
+                closeAddressModal();
+                await loadAddresses(); // Reload addresses
+                showToast(editingAddressId ? 'Address updated successfully!' : 'Address added successfully!', 'success');
+
+            } catch (error) {
+                console.error('Address save error:', error);
+                showToast('Failed to save address', 'error');
+            } finally {
+                hideLoadingSpinner();
+            }
+        }
+
+        function validateAddressForm() {
+            let isValid = true;
+            const requiredFields = ['addressType', 'recipientName', 'recipientPhone', 'addressLine1', 'city', 'state', 'pincode'];
+
+            requiredFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (!field.value.trim()) {
+                    field.classList.add('invalid');
+                    isValid = false;
+                } else {
+                    field.classList.remove('invalid');
+                }
+            });
+
+            // Validate PIN code format
+            const pincode = document.getElementById('pincode').value;
+            if (pincode && !/^\d{6}$/.test(pincode)) {
+                document.getElementById('pincode').classList.add('invalid');
+                showToast('PIN code must be 6 digits', 'error');
+                isValid = false;
+            }
+
+            // Validate phone number
+            const phone = document.getElementById('recipientPhone').value;
+            if (phone && !/^[\+]?[0-9\s\-\(\)]{8,15}$/.test(phone)) {
+                document.getElementById('recipientPhone').classList.add('invalid');
+                showToast('Please enter a valid phone number', 'error');
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        function collectAddressData() {
+            return {
+                type: document.getElementById('addressType').value,
+                label: document.getElementById('addressLabel').value.trim(),
+                recipientName: document.getElementById('recipientName').value.trim(),
+                recipientPhone: document.getElementById('recipientPhone').value.trim(),
+                addressLine1: document.getElementById('addressLine1').value.trim(),
+                addressLine2: document.getElementById('addressLine2').value.trim(),
+                city: document.getElementById('city').value.trim(),
+                state: document.getElementById('state').value.trim(),
+                pincode: document.getElementById('pincode').value.trim(),
+                landmark: document.getElementById('landmark').value.trim(),
+                deliveryInstructions: document.getElementById('deliveryInstructions').value.trim(),
+                isDefault: document.getElementById('isDefault').checked,
+                userId: currentUser.uid,
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        async function addAddress(addressData) {
+            addressData.createdAt = new Date().toISOString();
+
+            if (app.db) {
+                // If setting as default, unset other defaults first
+                if (addressData.isDefault) {
+                    await unsetOtherDefaults();
+                }
+
+                await app.db.collection('addresses').add({
+                    ...addressData,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } else {
+                // Local storage fallback
+                const localAddresses = JSON.parse(localStorage.getItem('userAddresses') || '[]');
+                
+                if (addressData.isDefault) {
+                    localAddresses.forEach(addr => {
+                        if (addr.userId === currentUser.uid) {
+                            addr.isDefault = false;
+                        }
+                    });
+                }
+
+                addressData.id = 'addr_' + Date.now();
+                localAddresses.push(addressData);
+                localStorage.setItem('userAddresses', JSON.stringify(localAddresses));
+            }
+        }
+
+        async function updateAddress(addressId, addressData) {
+            if (app.db) {
+                // If setting as default, unset other defaults first
+                if (addressData.isDefault) {
+                    await unsetOtherDefaults(addressId);
+                }
+
+                await app.db.collection('addresses').doc(addressId).update({
+                    ...addressData,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } else {
+                // Local storage fallback
+                const localAddresses = JSON.parse(localStorage.getItem('userAddresses') || '[]');
+                const addressIndex = localAddresses.findIndex(a => a.id === addressId);
+                
+                if (addressIndex !== -1) {
+                    if (addressData.isDefault) {
+                        localAddresses.forEach((addr, idx) => {
+                            if (addr.userId === currentUser.uid && idx !== addressIndex) {
+                                addr.isDefault = false;
+                            }
+                        });
+                    }
+
+                    localAddresses[addressIndex] = { ...localAddresses[addressIndex], ...addressData };
+                    localStorage.setItem('userAddresses', JSON.stringify(localAddresses));
+                }
+            }
+        }
+
+        async function unsetOtherDefaults(excludeId = null) {
+            if (app.db) {
+                const addressesSnapshot = await app.db.collection('addresses')
+                    .where('userId', '==', currentUser.uid)
+                    .where('isDefault', '==', true)
+                    .get();
+
+                const batch = app.db.batch();
+                addressesSnapshot.docs.forEach(doc => {
+                    if (doc.id !== excludeId) {
+                        batch.update(doc.ref, { isDefault: false });
+                    }
+                });
+                await batch.commit();
+            }
+        }
+
+        async function setDefaultAddress(addressId) {
+            try {
+                if (app.db) {
+                    // Unset other defaults first
+                    await unsetOtherDefaults(addressId);
+                    
+                    // Set this address as default
+                    await app.db.collection('addresses').doc(addressId).update({
+                        isDefault: true,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    // Local storage fallback
+                    const localAddresses = JSON.parse(localStorage.getItem('userAddresses') || '[]');
+                    localAddresses.forEach(addr => {
+                        if (addr.userId === currentUser.uid) {
+                            addr.isDefault = addr.id === addressId;
+                        }
+                    });
+                    localStorage.setItem('userAddresses', JSON.stringify(localAddresses));
+                }
+
+                await loadAddresses();
+                showToast('Default address updated!', 'success');
+
+            } catch (error) {
+                console.error('Error setting default address:', error);
+                showToast('Failed to set default address', 'error');
+            }
+        }
+
+        function showDeleteModal(addressId) {
+            deletingAddressId = addressId;
+            document.getElementById('deleteModal').classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+            document.body.style.overflow = 'auto';
+            deletingAddressId = null;
+        }
+
+        async function confirmDeleteAddress() {
+            if (!deletingAddressId) return;
+
+            try {
+                if (app.db) {
+                    await app.db.collection('addresses').doc(deletingAddressId).delete();
+                } else {
+                    // Local storage fallback
+                    const localAddresses = JSON.parse(localStorage.getItem('userAddresses') || '[]');
+                    const filteredAddresses = localAddresses.filter(a => a.id !== deletingAddressId);
+                    localStorage.setItem('userAddresses', JSON.stringify(filteredAddresses));
+                }
+
+                closeDeleteModal();
+                await loadAddresses();
+                showToast('Address deleted successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error deleting address:', error);
+                showToast('Failed to delete address', 'error');
+            }
+        }
+
+        // Auto-complete city based on PIN code (Indian PIN codes)
+        document.getElementById('pincode').addEventListener('input', async (e) => {
+            const pincode = e.target.value;
+            if (pincode.length === 6 && /^\d{6}$/.test(pincode)) {
+                // This would typically call a postal service API
+                // For demo purposes, we'll show a placeholder
+                console.log('Looking up city for PIN code:', pincode);
+            }
+        });
+
+        // Export functions for global access
+        window.showAddAddressModal = showAddAddressModal;
+        window.editAddress = editAddress;
+        window.closeAddressModal = closeAddressModal;
+        window.setDefaultAddress = setDefaultAddress;
+        window.showDeleteModal = showDeleteModal;
+        window.closeDeleteModal = closeDeleteModal;
+        window.confirmDeleteAddress = confirmDeleteAddress;
+    </script>
+</body>
+</html>

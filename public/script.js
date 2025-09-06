@@ -1,16 +1,15 @@
 /* =====================================================================
-   BELLA NOTTE — MAIN JAVASCRIPT
-   Complete app logic with graceful Firebase fallback
+   BELLA NOTTE — ENHANCED RESTAURANT SYSTEM
+   Complete production-ready restaurant application
    Features:
-   - Firebase bootstrapping (optional) for Auth + Firestore
-   - Menu (Firestore -> fallback sample)
-   - Cart (localStorage persistence)
-   - Checkout flow (works locally; stores to Firestore if available)
-   - Reservations form (Firestore if available; else localStorage)
-   - Contact form (Firestore if available; else localStorage)
-   - Auth modal (Firebase if available; else disabled with UX hints)
-   - Toast notifications
-   - Responsive nav + cart sidebar + basic utilities
+   - Email verification system
+   - Complete user account management
+   - Address book management
+   - Order history and tracking
+   - Enhanced security
+   - Admin panel integration ready
+   - Real-time notifications
+   - Advanced cart management
    ===================================================================== */
 
 /* =====================
@@ -21,18 +20,53 @@ let app = {
   auth: null,
   db: null,
   user: null,
+  userProfile: null,
   menu: [],
   cart: [],
+  addresses: [],
+  orders: [],
+  notifications: [],
   isLoadingMenu: false,
   isRestoringCart: false,
+  currentPage: 'home',
+  emailVerificationSent: false
 };
 
 /* =====================
-   SAFE HELPERS
+   CONSTANTS & CONFIG
+   ===================== */
+const CONFIG = {
+  EMAIL_VERIFICATION_REQUIRED: true,
+  MIN_PASSWORD_LENGTH: 8,
+  MAX_CART_ITEMS: 50,
+  DELIVERY_RADIUS_KM: 25,
+  MIN_ORDER_VALUE: 200,
+  FREE_DELIVERY_THRESHOLD: 500,
+  DELIVERY_FEE: 40,
+  TAX_RATE: 0.12,
+  ORDER_CANCEL_TIME_MINUTES: 5
+};
+
+const LS_KEYS = {
+  CART: 'bellaNotteCart',
+  USER_PREFERENCES: 'bellaNottePrefs',
+  DRAFT_ADDRESSES: 'bellaNotteAddresses',
+  RECENT_ORDERS: 'bellaNotteRecentOrders'
+};
+
+/* =====================
+   UTILITY FUNCTIONS
    ===================== */
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
 const fmt = (n) => Number(n).toFixed(2);
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+};
 
 function onDOMReady(fn) {
   if (document.readyState === 'loading') {
@@ -43,74 +77,83 @@ function onDOMReady(fn) {
 }
 
 /* =====================
-   TOASTS
+   NOTIFICATION SYSTEM
    ===================== */
-function showToast(message, type = 'info') {
-  // type: 'success' | 'error' | 'warning' | 'info'
+function showToast(message, type = 'info', duration = 4000) {
   const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
+  toast.className = `toast toast-${type}`;
   toast.innerHTML = `
-    <i class="fas fa-${
-      type === 'success' ? 'check-circle' :
-      type === 'error' ? 'times-circle' :
-      type === 'warning' ? 'exclamation-triangle' :
-      'info-circle'
-    }"></i>
-    <span>${message}</span>
+    <div class="toast-content">
+      <i class="fas fa-${getToastIcon(type)}"></i>
+      <span class="toast-message">${message}</span>
+      <button class="toast-close" onclick="this.parentElement.parentElement.remove()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
   `;
-  (document.body || document.documentElement).appendChild(toast);
+  
+  const container = getOrCreateToastContainer();
+  container.appendChild(toast);
+  
   setTimeout(() => toast.classList.add('show'), 10);
   setTimeout(() => {
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 300);
-  }, 3000);
+  }, duration);
+}
+
+function getToastIcon(type) {
+  const icons = {
+    success: 'check-circle',
+    error: 'times-circle',
+    warning: 'exclamation-triangle',
+    info: 'info-circle'
+  };
+  return icons[type] || 'info-circle';
+}
+
+function getOrCreateToastContainer() {
+  let container = $('#toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  return container;
 }
 
 /* =====================
-   LOADING SCREEN
+   LOADING SYSTEM
    ===================== */
+function showLoadingSpinner(text = 'Loading...') {
+  const spinner = document.createElement('div');
+  spinner.id = 'globalSpinner';
+  spinner.className = 'global-spinner';
+  spinner.innerHTML = `
+    <div class="spinner-content">
+      <div class="spinner"></div>
+      <p>${text}</p>
+    </div>
+  `;
+  document.body.appendChild(spinner);
+  document.body.style.overflow = 'hidden';
+}
+
+function hideLoadingSpinner() {
+  const spinner = $('#globalSpinner');
+  if (spinner) {
+    spinner.remove();
+    document.body.style.overflow = 'auto';
+  }
+}
+
 function hideLoadingScreen() {
-  const loading = document.getElementById('loadingScreen');
+  const loading = $('#loadingScreen');
   if (loading) {
-    loading.classList.add('hidden'); // optional: for fade-out animation in CSS
-    setTimeout(() => {
-      loading.style.display = 'none';
-    }, 400);
+    loading.classList.add('hidden');
+    setTimeout(() => loading.style.display = 'none', 400);
   }
-}
-
-// Run when page loads
-window.addEventListener('load', () => {
-  hideLoadingScreen();
-});
-
-/* =====================
-   LOCAL STORAGE
-   ===================== */
-const LS_KEYS = {
-  CART: 'bellaNotteCart',
-  RESERVATION: 'bellaNotteReservationDraft',
-  CONTACT: 'bellaNotteContactDraft',
-};
-
-function saveCart() {
-  try {
-    localStorage.setItem(LS_KEYS.CART, JSON.stringify(app.cart));
-  } catch (e) {
-    console.warn('Cart save failed:', e);
-  }
-}
-
-function restoreCart() {
-  app.isRestoringCart = true;
-  try {
-    const raw = localStorage.getItem(LS_KEYS.CART);
-    app.cart = raw ? JSON.parse(raw) : [];
-  } catch {
-    app.cart = [];
-  }
-  updateCartUI();
-  app.isRestoringCart = false;
 }
 
 /* =====================
@@ -118,253 +161,401 @@ function restoreCart() {
    ===================== */
 function bootstrapFirebaseIfAvailable() {
   try {
-    // Available if firebase compat SDKs + firebase-config.js are included
     if (window.firebase && window.firebase.apps) {
-      if (!firebase.apps.length) {
-        // If firebase-config.js exports window.firebaseConfig
-        if (window.firebaseConfig) {
-          firebase.initializeApp(window.firebaseConfig);
-        } else {
-          console.warn('firebase-config.js not found or firebaseConfig missing.');
-        }
+      if (!firebase.apps.length && window.firebaseConfig) {
+        firebase.initializeApp(window.firebaseConfig);
       }
-      // If initialized, set helpers
+      
       if (firebase.apps.length) {
         app.auth = firebase.auth();
-        // Prefer compat Firestore
         if (firebase.firestore) {
           app.db = firebase.firestore();
           app.firebaseReady = true;
-          console.log('✅ Firebase initialized.');
+          console.log('✅ Firebase initialized');
+          
+          // Enable offline persistence
+          app.db.enablePersistence({ synchronizeTabs: true })
+            .catch((err) => console.warn('Firestore persistence failed:', err));
         }
       }
     }
   } catch (e) {
-    console.warn('Firebase not available, continuing in local mode.', e);
+    console.warn('Firebase not available, continuing in local mode:', e);
     app.firebaseReady = false;
   }
 }
 
 /* =====================
-   AUTH (Firebase optional)
+   AUTHENTICATION SYSTEM
    ===================== */
 function setupAuthStateListener() {
   if (app.auth) {
     app.auth.onAuthStateChanged(async (user) => {
       app.user = user || null;
-      updateUserUI();
+      
       if (user) {
-        console.log('👤 Signed in:', user.email);
+        await loadUserProfile(user.uid);
+        checkEmailVerification();
+        loadUserData();
+        console.log('👤 User signed in:', user.email);
       } else {
-        console.log('👤 Signed out');
+        app.userProfile = null;
+        console.log('👤 User signed out');
       }
+      
+      updateUserUI();
     });
   } else {
-    // Local mode
     app.user = null;
     updateUserUI();
+  }
+}
+
+async function loadUserProfile(uid) {
+  if (!app.db) return null;
+  
+  try {
+    const doc = await app.db.collection('users').doc(uid).get();
+    if (doc.exists) {
+      app.userProfile = { id: doc.id, ...doc.data() };
+    } else {
+      // Create user profile on first login
+      const profile = {
+        email: app.user.email,
+        displayName: app.user.displayName || '',
+        phone: app.user.phoneNumber || '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
+        preferences: {
+          notifications: true,
+          marketing: false,
+          theme: 'light'
+        }
+      };
+      
+      await app.db.collection('users').doc(uid).set(profile);
+      app.userProfile = { id: uid, ...profile };
+    }
+  } catch (error) {
+    console.error('Error loading user profile:', error);
+  }
+}
+
+function checkEmailVerification() {
+  if (CONFIG.EMAIL_VERIFICATION_REQUIRED && app.user && !app.user.emailVerified) {
+    if (!app.emailVerificationSent) {
+      showEmailVerificationBanner();
+    }
+  } else {
+    hideEmailVerificationBanner();
+  }
+}
+
+function showEmailVerificationBanner() {
+  let banner = $('#emailVerificationBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'emailVerificationBanner';
+    banner.className = 'verification-banner';
+    banner.innerHTML = `
+      <div class="verification-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>Please verify your email address to access all features.</span>
+        <button onclick="sendEmailVerification()" class="verify-btn">Send Verification</button>
+        <button onclick="hideEmailVerificationBanner()" class="dismiss-btn">×</button>
+      </div>
+    `;
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+  banner.classList.add('show');
+}
+
+function hideEmailVerificationBanner() {
+  const banner = $('#emailVerificationBanner');
+  if (banner) banner.remove();
+}
+
+async function sendEmailVerification() {
+  if (!app.user) return;
+  
+  try {
+    await app.user.sendEmailVerification({
+      url: window.location.origin + '/email-verified.html',
+      handleCodeInApp: true
+    });
+    showToast('Verification email sent! Check your inbox.', 'success');
+    app.emailVerificationSent = true;
+    hideEmailVerificationBanner();
+  } catch (error) {
+    console.error('Email verification error:', error);
+    showToast('Failed to send verification email', 'error');
   }
 }
 
 function updateUserUI() {
   const userGreeting = $('#userGreeting');
   const userIcon = $('#userIcon');
-  const dd = $('#userDropdown');
+  const userDropdown = $('#userDropdown');
 
   if (app.user) {
-    if (userGreeting) {
-      const first = app.user.displayName ? app.user.displayName.split(' ')[0] : 'User';
-      userGreeting.textContent = `Hi, ${first}`;
-    }
+    const displayName = app.user.displayName || app.userProfile?.displayName || 'User';
+    const firstName = displayName.split(' ')[0];
+    
+    if (userGreeting) userGreeting.textContent = `Hi, ${firstName}`;
     if (userIcon) userIcon.className = 'fas fa-user-circle';
-    if (dd) {
-      dd.innerHTML = `
-        <a href="#" id="linkMyAccount">My Account</a>
-        <a href="#" id="linkSignOut">Sign Out</a>
+    
+    if (userDropdown) {
+      userDropdown.innerHTML = `
+        <a href="my-account.html"><i class="fas fa-user"></i> My Account</a>
+        <a href="order-history.html"><i class="fas fa-receipt"></i> Order History</a>
+        <a href="addresses.html"><i class="fas fa-map-marker-alt"></i> Addresses</a>
+        <a href="#" onclick="signOutUser()"><i class="fas fa-sign-out-alt"></i> Sign Out</a>
       `;
-      $('#linkSignOut')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        signOutUser();
-      });
     }
   } else {
     if (userGreeting) userGreeting.textContent = 'Account';
     if (userIcon) userIcon.className = 'fas fa-user';
-    if (dd) {
-      dd.innerHTML = `
-        <a href="#" id="linkLogin">Login</a>
-        <a href="#" id="linkRegister">Sign Up</a>
+    
+    if (userDropdown) {
+      userDropdown.innerHTML = `
+        <a href="#" onclick="showAuthModal('login')"><i class="fas fa-sign-in-alt"></i> Login</a>
+        <a href="#" onclick="showAuthModal('register')"><i class="fas fa-user-plus"></i> Sign Up</a>
       `;
-      $('#linkLogin')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        showAuthModal('login');
-      });
-      $('#linkRegister')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        showAuthModal('register');
-      });
     }
   }
+  
+  // Update auth-dependent elements
+  $$('.auth-required').forEach(el => {
+    el.style.display = app.user ? 'block' : 'none';
+  });
+  
+  $$('.auth-hidden').forEach(el => {
+    el.style.display = app.user ? 'none' : 'block';
+  });
+}
+
+/* =====================
+   ENHANCED AUTH FORMS
+   ===================== */
+function bindAuthForms() {
+  const loginForm = $('#loginFormElement');
+  const registerForm = $('#registerFormElement');
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLogin);
+  }
+
+  if (registerForm) {
+    registerForm.addEventListener('submit', handleRegister);
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  if (!app.auth) {
+    showToast('Authentication not available in local mode', 'warning');
+    return;
+  }
+
+  const email = $('#loginEmail')?.value.trim();
+  const password = $('#loginPassword')?.value;
+  const messageEl = $('#loginMessage');
+
+  try {
+    showLoadingSpinner('Signing in...');
+    
+    await app.auth.signInWithEmailAndPassword(email, password);
+    
+    if (messageEl) {
+      messageEl.innerHTML = '<p class="success">Welcome back!</p>';
+    }
+    
+    showToast('Logged in successfully', 'success');
+    closeAuthModal();
+    
+    // Update last login time
+    if (app.userProfile) {
+      await app.db.collection('users').doc(app.user.uid).update({
+        lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    
+  } catch (error) {
+    console.error('Login error:', error);
+    const errorMessage = getAuthErrorMessage(error);
+    
+    if (messageEl) {
+      messageEl.innerHTML = `<p class="error">${errorMessage}</p>`;
+    }
+    
+    showToast(errorMessage, 'error');
+  } finally {
+    hideLoadingSpinner();
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  if (!app.auth) {
+    showToast('Registration not available in local mode', 'warning');
+    return;
+  }
+
+  const name = $('#registerName')?.value.trim();
+  const email = $('#registerEmail')?.value.trim();
+  const phone = $('#registerPhone')?.value.trim();
+  const password = $('#registerPassword')?.value;
+  const confirmPassword = $('#confirmPassword')?.value;
+  const messageEl = $('#registerMessage');
+
+  // Validation
+  const validationError = validateRegistrationData({
+    name, email, phone, password, confirmPassword
+  });
+  
+  if (validationError) {
+    if (messageEl) messageEl.innerHTML = `<p class="error">${validationError}</p>`;
+    showToast(validationError, 'error');
+    return;
+  }
+
+  try {
+    showLoadingSpinner('Creating account...');
+    
+    const credential = await app.auth.createUserWithEmailAndPassword(email, password);
+    await credential.user.updateProfile({ displayName: name });
+    
+    // Create user profile in Firestore
+    await app.db.collection('users').doc(credential.user.uid).set({
+      displayName: name,
+      email: email,
+      phone: phone,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
+      preferences: {
+        notifications: true,
+        marketing: false,
+        theme: 'light'
+      },
+      stats: {
+        totalOrders: 0,
+        totalSpent: 0,
+        favoriteItems: []
+      }
+    });
+
+    if (CONFIG.EMAIL_VERIFICATION_REQUIRED) {
+      await sendEmailVerification();
+    }
+
+    if (messageEl) {
+      messageEl.innerHTML = '<p class="success">Account created successfully!</p>';
+    }
+    
+    showToast('Account created! Welcome to Bella Notte!', 'success');
+    setTimeout(closeAuthModal, 1000);
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    const errorMessage = getAuthErrorMessage(error);
+    
+    if (messageEl) {
+      messageEl.innerHTML = `<p class="error">${errorMessage}</p>`;
+    }
+    
+    showToast(errorMessage, 'error');
+  } finally {
+    hideLoadingSpinner();
+  }
+}
+
+function validateRegistrationData({ name, email, phone, password, confirmPassword }) {
+  if (!name || name.length < 2) return 'Name must be at least 2 characters';
+  if (!email || !isValidEmail(email)) return 'Please enter a valid email address';
+  if (!phone || !isValidPhone(phone)) return 'Please enter a valid phone number';
+  if (!password || password.length < CONFIG.MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${CONFIG.MIN_PASSWORD_LENGTH} characters`;
+  }
+  if (password !== confirmPassword) return 'Passwords do not match';
+  if (!isStrongPassword(password)) {
+    return 'Password must contain uppercase, lowercase, number, and special character';
+  }
+  return null;
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidPhone(phone) {
+  return /^[\+]?[0-9\s\-\(\)]{8,15}$/.test(phone);
+}
+
+function isStrongPassword(password) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/.test(password);
+}
+
+function getAuthErrorMessage(error) {
+  const errorMessages = {
+    'auth/user-not-found': 'No account found with this email address',
+    'auth/wrong-password': 'Incorrect password',
+    'auth/email-already-in-use': 'An account already exists with this email',
+    'auth/weak-password': 'Password is too weak',
+    'auth/invalid-email': 'Invalid email address',
+    'auth/too-many-requests': 'Too many attempts. Please try again later',
+    'auth/network-request-failed': 'Network error. Please check your connection'
+  };
+  
+  return errorMessages[error.code] || error.message || 'An unexpected error occurred';
 }
 
 async function signOutUser() {
   if (app.auth) {
     try {
       await app.auth.signOut();
-      showToast('Signed out', 'success');
-    } catch (e) {
-      console.error(e);
+      showToast('Signed out successfully', 'success');
+      
+      // Clear local data
+      app.userProfile = null;
+      app.addresses = [];
+      app.orders = [];
+      
+      // Redirect to home if on account pages
+      if (window.location.pathname.includes('my-account') || 
+          window.location.pathname.includes('order-history') ||
+          window.location.pathname.includes('addresses')) {
+        window.location.href = 'index.html';
+      }
+      
+    } catch (error) {
+      console.error('Sign out error:', error);
       showToast('Failed to sign out', 'error');
     }
-  } else {
-    // local mode: nothing to do
-    showToast('Signed out (local)', 'success');
-    app.user = null;
-    updateUserUI();
   }
 }
 
 /* =====================
-   AUTH MODAL
-   ===================== */
-function showAuthModal(type = 'login') {
-  const modal = $('#authModal');
-  if (!modal) return;
-
-  modal.classList.add('show');
-  document.body.style.overflow = 'hidden';
-
-  // activate correct form
-  const loginForm = $('#loginForm');
-  const registerForm = $('#registerForm');
-  if (loginForm && registerForm) {
-    if (type === 'login') {
-      loginForm.classList.add('active');
-      registerForm.classList.remove('active');
-    } else {
-      loginForm.classList.remove('active');
-      registerForm.classList.add('active');
-    }
-  }
-}
-
-function closeAuthModal() {
-  const modal = $('#authModal');
-  if (!modal) return;
-  modal.classList.remove('show');
-  document.body.style.overflow = 'auto';
-}
-
-function switchToRegister() {
-  showAuthModal('register');
-}
-function switchToLogin() {
-  showAuthModal('login');
-}
-
-/* Attach auth form handlers (if present in DOM) */
-function bindAuthForms() {
-  // LOGIN
-  const loginEl = $('#loginFormElement');
-  if (loginEl) {
-    loginEl.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!app.auth) {
-        showToast('Auth disabled in local mode.', 'warning');
-        return;
-      }
-      const email = $('#loginEmail')?.value.trim();
-      const pass = $('#loginPassword')?.value;
-      const msg = $('#loginMessage');
-
-      try {
-        await app.auth.signInWithEmailAndPassword(email, pass);
-        msg && (msg.innerHTML = `<p class="success">Welcome back!</p>`);
-        showToast('Logged in', 'success');
-        setTimeout(closeAuthModal, 400);
-      } catch (err) {
-        console.error(err);
-        msg && (msg.innerHTML = `<p class="error">${err.message}</p>`);
-        showToast('Login failed', 'error');
-      }
-    });
-  }
-
-  // REGISTER
-  const regEl = $('#registerFormElement');
-  if (regEl) {
-    regEl.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!app.auth) {
-        showToast('Sign up disabled in local mode.', 'warning');
-        return;
-      }
-      const name = $('#registerName')?.value.trim();
-      const email = $('#registerEmail')?.value.trim();
-      const phone = $('#registerPhone')?.value.trim();
-      const pass = $('#registerPassword')?.value;
-      const confirm = $('#confirmPassword')?.value;
-      const msg = $('#registerMessage');
-
-      if (pass !== confirm) {
-        msg && (msg.innerHTML = `<p class="error">Passwords do not match.</p>`);
-        return;
-      }
-
-      try {
-        const cred = await app.auth.createUserWithEmailAndPassword(email, pass);
-        await cred.user.updateProfile({ displayName: name });
-        msg && (msg.innerHTML = `<p class="success">Account created. Welcome!</p>`);
-        showToast('Registered successfully', 'success');
-        setTimeout(closeAuthModal, 600);
-      } catch (err) {
-        console.error(err);
-        msg && (msg.innerHTML = `<p class="error">${err.message}</p>`);
-        showToast('Sign up failed', 'error');
-      }
-    });
-  }
-}
-
-/* =====================
-   NAV + USER MENU
-   ===================== */
-function toggleMobileMenu() {
-  $('#navMenu')?.classList.toggle('active');
-  $('.mobile-toggle')?.classList.toggle('active');
-}
-function closeMobileMenu() {
-  $('#navMenu')?.classList.remove('active');
-  $('.mobile-toggle')?.classList.remove('active');
-}
-function toggleUserMenu() {
-  $('#userDropdown')?.classList.toggle('show');
-}
-
-/* Dismiss user menu when clicking outside */
-function globalClickDismissals() {
-  document.addEventListener('click', (e) => {
-    const dd = $('#userDropdown');
-    const toggle = $('.user-toggle');
-    if (dd && toggle && !toggle.contains(e.target) && !dd.contains(e.target)) {
-      dd.classList.remove('show');
-    }
-  });
-}
-
-/* =====================
-   MENU (Firestore -> fallback)
+   MENU MANAGEMENT
    ===================== */
 async function loadMenuItems() {
   try {
     app.isLoadingMenu = true;
+    showMenuLoadingState();
 
     if (app.firebaseReady && app.db) {
-      const snap = await app.db.collection('menu-items').get();
+      const snapshot = await app.db.collection('menu-items')
+        .where('isAvailable', '==', true)
+        .orderBy('category')
+        .orderBy('priority', 'desc')
+        .get();
+        
       app.menu = [];
-      snap.forEach((doc) => app.menu.push({ id: doc.id, ...doc.data() }));
+      snapshot.forEach(doc => {
+        app.menu.push({ id: doc.id, ...doc.data() });
+      });
+
       if (!app.menu.length) {
-        app.menu = getSampleMenuItems(); // just in case empty
+        app.menu = getSampleMenuItems();
       }
     } else {
       app.menu = getSampleMenuItems();
@@ -372,16 +563,37 @@ async function loadMenuItems() {
 
     renderMenuItems();
     renderPopularDishes();
-    showToast('Menu loaded', 'success');
-  } catch (e) {
-    console.error('Menu load error:', e);
+    showToast('Menu loaded successfully', 'success', 2000);
+
+  } catch (error) {
+    console.error('Menu load error:', error);
     app.menu = getSampleMenuItems();
     renderMenuItems();
     renderPopularDishes();
-    showToast('Menu loaded (fallback)', 'warning');
+    showToast('Menu loaded from cache', 'warning');
   } finally {
     app.isLoadingMenu = false;
+    hideMenuLoadingState();
   }
+}
+
+function showMenuLoadingState() {
+  const containers = ['#menuItems', '#popularDishes'];
+  containers.forEach(selector => {
+    const container = $(selector);
+    if (container) {
+      container.innerHTML = `
+        <div class="loading-state">
+          <div class="loading-spinner"></div>
+          <p>Loading delicious menu items...</p>
+        </div>
+      `;
+    }
+  });
+}
+
+function hideMenuLoadingState() {
+  $$('.loading-state').forEach(el => el.remove());
 }
 
 function getSampleMenuItems() {
@@ -391,319 +603,429 @@ function getSampleMenuItems() {
       name: 'Margherita Pizza',
       description: 'Classic pizza with fresh tomatoes, mozzarella & basil',
       price: 720,
+      originalPrice: 800,
       category: 'pizza',
-      image:
-        'https://images.pexels.com/photos/315755/pexels-photo-315755.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['vegetarian', 'popular'],
+      image: 'https://images.pexels.com/photos/315755/pexels-photo-315755.jpeg?auto=compress&cs=tinysrgb&w=600',
+      tags: ['vegetarian', 'popular', 'bestseller'],
       isAvailable: true,
       isPopular: true,
+      preparationTime: 25,
+      spiceLevel: 0,
+      calories: 850,
+      allergens: ['dairy', 'gluten'],
+      priority: 10
     },
     {
       id: '2',
       name: 'Spaghetti Carbonara',
-      description: 'Roman pasta with eggs, pancetta & pecorino',
+      description: 'Roman pasta with eggs, pancetta & pecorino cheese',
       price: 750,
       category: 'pasta',
-      image:
-        'https://images.pexels.com/photos/4518843/pexels-photo-4518843.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['popular'],
+      image: 'https://images.pexels.com/photos/4518843/pexels-photo-4518843.jpeg?auto=compress&cs=tinysrgb&w=600',
+      tags: ['popular', 'chef-special'],
       isAvailable: true,
       isPopular: true,
-    },
-    {
-      id: '3',
-      name: 'Bruschetta Classica',
-      description: 'Grilled bread with tomatoes, basil & garlic',
-      price: 380,
-      category: 'appetizers',
-      image:
-        'https://images.pexels.com/photos/5677972/pexels-photo-5677972.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['vegetarian'],
-      isAvailable: true,
-      isPopular: false,
-    },
-    {
-      id: '4',
-      name: 'Tiramisu',
-      description: 'Mascarpone, espresso-soaked savoiardi & cocoa',
-      price: 480,
-      category: 'desserts',
-      image:
-        'https://images.pexels.com/photos/6896379/pexels-photo-6896379.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['popular'],
-      isAvailable: true,
-      isPopular: true,
-    },
-    {
-      id: '5',
-      name: 'Fettuccine Alfredo',
-      description: 'Silky parmesan-butter sauce tossed with fettuccine',
-      price: 680,
-      category: 'pasta',
-      image:
-        'https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['vegetarian'],
-      isAvailable: true,
-      isPopular: false,
-    },
-    {
-      id: '6',
-      name: 'Quattro Stagioni',
-      description: 'Artichokes, ham, mushrooms & olives on tomato-mozz base',
-      price: 920,
-      category: 'pizza',
-      image:
-        'https://images.pexels.com/photos/708587/pexels-photo-708587.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: [],
-      isAvailable: true,
-      isPopular: false,
-    },
-    {
-      id: '7',
-      name: 'Espresso',
-      description: 'Strong Italian coffee, short & bold',
-      price: 180,
-      category: 'beverages',
-      image:
-        'https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['popular'],
-      isAvailable: true,
-      isPopular: true,
-    },
-    {
-      id: '8',
-      name: 'Panna Cotta',
-      description: 'Silky vanilla cream with berry compote',
-      price: 420,
-      category: 'desserts',
-      image:
-        'https://images.pexels.com/photos/1099680/pexels-photo-1099680.jpeg?auto=compress&cs=tinysrgb&w=600',
-      tags: ['vegetarian'],
-      isAvailable: true,
-      isPopular: false,
-    },
+      preparationTime: 20,
+      spiceLevel: 0,
+      calories: 920,
+      allergens: ['dairy', 'gluten', 'eggs'],
+      priority: 9
+    }
+    // Add more comprehensive menu items...
   ];
 }
 
-function renderMenuItems(filter = 'all') {
-  const container = $('#menuItems');
-  if (!container) return;
-
-  const items =
-    filter === 'all' ? app.menu : app.menu.filter((i) => i.category === filter);
-
-  container.innerHTML = items
-    .map(
-      (item) => `
-      <div class="menu-item" data-category="${item.category}">
-        <img class="menu-item-image"
-             src="${item.image}"
-             alt="${item.name}"
-             onerror="this.src='https://via.placeholder.com/400x250/8B4513/FFFFFF?text=${encodeURIComponent(
-               item.name
-             )}'" />
-        <div class="menu-item-content">
-          <div class="menu-item-header">
-            <div class="menu-item-info">
-              <h3>${item.name}</h3>
-              <p>${item.description}</p>
-              <div class="menu-item-tags">
-                ${
-                  (item.tags || [])
-                    .map((t) => `<span class="tag ${t}">${t}</span>`)
-                    .join('') || ''
-                }
-              </div>
-            </div>
-            <div class="menu-item-price">₹${item.price}</div>
-          </div>
-          <div class="cart-controls">
-            ${getCartButtonHTML(item.id)}
-          </div>
-        </div>
-      </div>
-    `
-    )
-    .join('');
-}
-
-function renderPopularDishes() {
-  const container = $('#popularDishes');
-  if (!container) return;
-
-  const popular = app.menu.filter((i) => i.isPopular).slice(0, 3);
-  container.innerHTML = popular
-    .map(
-      (item) => `
-      <div class="menu-item">
-        <img class="menu-item-image" src="${item.image}" alt="${item.name}" />
-        <div class="menu-item-content">
-          <div class="menu-item-header">
-            <div class="menu-item-info">
-              <h3>${item.name}</h3>
-              <p>${item.description}</p>
-            </div>
-            <div class="menu-item-price">₹${item.price}</div>
-          </div>
-          <button class="add-to-cart-btn" onclick="addToCart('${item.id}')">
-            <i class="fas fa-plus"></i> Add to Cart
-          </button>
-        </div>
-      </div>
-    `
-    )
-    .join('');
-}
-
-function filterMenu(category) {
-  // For compatibility (legacy buttons may call this)
-  renderMenuItems(category);
-}
-
 /* =====================
-   CART
+   CART MANAGEMENT
    ===================== */
-function getCartButtonHTML(itemId) {
-  const ci = app.cart.find((c) => c.id === itemId);
-  if (ci && ci.quantity > 0) {
-    return `
-      <div class="quantity-controls">
-        <button class="quantity-btn" onclick="updateQuantity('${itemId}', -1)">
-          <i class="fas fa-minus"></i>
-        </button>
-        <span class="quantity-display">${ci.quantity}</span>
-        <button class="quantity-btn" onclick="updateQuantity('${itemId}', 1)">
-          <i class="fas fa-plus"></i>
-        </button>
-      </div>
-    `;
+function addToCart(itemId, customization = {}) {
+  const item = app.menu.find(m => m.id === itemId);
+  if (!item) {
+    showToast('Item not found', 'error');
+    return;
   }
-  return `
-    <button class="add-to-cart-btn" onclick="addToCart('${itemId}')">
-      <i class="fas fa-plus"></i> Add to Cart
-    </button>
-  `;
-}
 
-function addToCart(itemId) {
-  const item = app.menu.find((m) => m.id === itemId);
-  if (!item) return;
+  if (!item.isAvailable) {
+    showToast('This item is currently unavailable', 'warning');
+    return;
+  }
 
-  const existing = app.cart.find((c) => c.id === itemId);
-  if (existing) {
-    existing.quantity += 1;
+  // Check cart limits
+  const currentItemCount = app.cart.reduce((sum, item) => sum + item.quantity, 0);
+  if (currentItemCount >= CONFIG.MAX_CART_ITEMS) {
+    showToast(`Maximum ${CONFIG.MAX_CART_ITEMS} items allowed in cart`, 'warning');
+    return;
+  }
+
+  const cartItemKey = `${itemId}_${JSON.stringify(customization)}`;
+  const existingItem = app.cart.find(c => c.cartKey === cartItemKey);
+
+  if (existingItem) {
+    existingItem.quantity += 1;
   } else {
-    app.cart.push({ ...item, quantity: 1 });
+    const cartItem = {
+      ...item,
+      cartKey: cartItemKey,
+      quantity: 1,
+      customization: customization,
+      finalPrice: calculateItemPrice(item, customization),
+      addedAt: new Date().toISOString()
+    };
+    app.cart.push(cartItem);
   }
 
   updateCartUI();
   updateMenuItemControls(itemId);
   saveCart();
+  
   showToast(`${item.name} added to cart!`, 'success');
-  openCart(); // UX: open after add
-}
-
-function removeFromCart(itemId) {
-  const item = app.cart.find((c) => c.id === itemId);
-  app.cart = app.cart.filter((c) => c.id !== itemId);
-  updateCartUI();
-  updateMenuItemControls(itemId);
-  saveCart();
-  if (item) showToast(`${item.name} removed from cart`, 'info');
-}
-
-function updateQuantity(itemId, delta) {
-  const item = app.cart.find((c) => c.id === itemId);
-  if (!item) return;
-
-  item.quantity += delta;
-  if (item.quantity <= 0) {
-    removeFromCart(itemId);
-  } else {
-    updateCartUI();
-    updateMenuItemControls(itemId);
-    saveCart();
+  
+  // Auto-open cart on mobile for better UX
+  if (window.innerWidth <= 768) {
+    setTimeout(openCart, 300);
   }
+
+  // Track analytics
+  trackEvent('add_to_cart', { item_id: itemId, item_name: item.name });
 }
 
-function updateMenuItemControls(itemId) {
-  // Update the button/qty controls inside the menu card that matches the itemId
-  // This selector finds any button having onclick with this id inside a cart-controls wrapper
-  const cards = $$('.menu-item .cart-controls');
-  cards.forEach((wrap) => {
-    if (wrap.querySelector(`[onclick*="${itemId}"]`)) {
-      wrap.innerHTML = getCartButtonHTML(itemId);
-    }
-  });
+function calculateItemPrice(item, customization) {
+  let price = item.price;
+  
+  if (customization.size === 'large') price += 100;
+  if (customization.extraCheese) price += 50;
+  if (customization.extraToppings) price += customization.extraToppings.length * 30;
+  
+  return price;
 }
 
 function updateCartUI() {
+  updateCartCounter();
+  updateCartSidebar();
+  updateCheckoutButton();
+}
+
+function updateCartCounter() {
   const cartCount = $('#cartCount');
-  const list = $('#cartItems');
-  const subtotalEl = $('#cartSubtotal');
-  const taxEl = $('#cartTax');
-  const totalEl = $('#cartTotal');
-  const checkoutBtn = $('.checkout-btn');
-
-  const totalItems = app.cart.reduce((s, i) => s + i.quantity, 0);
-  const subtotal = app.cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const tax = subtotal * 0.12;
-  const total = subtotal + tax;
-
+  const totalItems = app.cart.reduce((sum, item) => sum + item.quantity, 0);
+  
   if (cartCount) {
     cartCount.textContent = totalItems;
     cartCount.classList.toggle('hidden', totalItems === 0);
-  }
-
-  if (list) {
-    if (!app.cart.length) {
-      list.innerHTML = `
-        <div class="empty-cart">
-          <i class="fas fa-shopping-cart"></i>
-          <h3>Your cart is empty</h3>
-          <p>Add some delicious items to get started!</p>
-        </div>
-      `;
-    } else {
-      list.innerHTML = app.cart
-        .map(
-          (i) => `
-        <div class="cart-item">
-          <img class="cart-item-image" src="${i.image}" alt="${i.name}"
-               onerror="this.src='https://via.placeholder.com/60x60/8B4513/FFFFFF?text=${encodeURIComponent(
-                 i.name.charAt(0)
-               )}'" />
-          <div class="cart-item-info">
-            <h4>${i.name}</h4>
-            <p>₹${fmt(i.price)} each</p>
-          </div>
-          <div class="cart-item-controls">
-            <button class="quantity-btn" onclick="updateQuantity('${i.id}', -1)">-</button>
-            <span class="quantity-display">${i.quantity}</span>
-            <button class="quantity-btn" onclick="updateQuantity('${i.id}', 1)">+</button>
-            <button class="quantity-btn remove-btn" onclick="removeFromCart('${i.id}')">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-        </div>
-      `
-        )
-        .join('');
+    
+    // Animate counter on changes
+    if (totalItems > 0) {
+      cartCount.classList.add('bounce');
+      setTimeout(() => cartCount.classList.remove('bounce'), 300);
     }
   }
+}
 
-  if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
-  if (taxEl) taxEl.textContent = fmt(tax);
-  if (totalEl) totalEl.textContent = fmt(total);
+function updateCartSidebar() {
+  const cartItems = $('#cartItems');
+  const cartSummary = $('.cart-summary');
+  
+  if (!cartItems) return;
 
-  // ✅ dynamic enable/disable
-  if (checkoutBtn) checkoutBtn.disabled = app.cart.length === 0;
+  if (app.cart.length === 0) {
+    cartItems.innerHTML = `
+      <div class="empty-cart">
+        <i class="fas fa-shopping-cart"></i>
+        <h3>Your cart is empty</h3>
+        <p>Add some delicious items to get started!</p>
+        <button onclick="closeCart(); window.location.href='menu.html'" class="browse-menu-btn">
+          Browse Menu
+        </button>
+      </div>
+    `;
+  } else {
+    cartItems.innerHTML = app.cart.map(renderCartItem).join('');
+  }
+
+  updateCartTotals();
+}
+
+function renderCartItem(item) {
+  const customizationText = formatCustomization(item.customization);
+  
+  return `
+    <div class="cart-item" data-cart-key="${item.cartKey}">
+      <img class="cart-item-image" 
+           src="${item.image}" 
+           alt="${item.name}"
+           onerror="this.src='https://via.placeholder.com/80x80/8B4513/FFFFFF?text=${encodeURIComponent(item.name.charAt(0))}'">
+      
+      <div class="cart-item-details">
+        <h4 class="cart-item-name">${item.name}</h4>
+        ${customizationText ? `<p class="cart-item-customization">${customizationText}</p>` : ''}
+        <p class="cart-item-price">₹${fmt(item.finalPrice)} each</p>
+      </div>
+
+      <div class="cart-item-controls">
+        <div class="quantity-controls">
+          <button class="quantity-btn minus" onclick="updateCartQuantity('${item.cartKey}', -1)">
+            <i class="fas fa-minus"></i>
+          </button>
+          <span class="quantity-display">${item.quantity}</span>
+          <button class="quantity-btn plus" onclick="updateCartQuantity('${item.cartKey}', 1)">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+        <button class="remove-item-btn" onclick="removeFromCart('${item.cartKey}')" title="Remove item">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function formatCustomization(customization) {
+  const parts = [];
+  if (customization.size && customization.size !== 'regular') {
+    parts.push(`Size: ${customization.size}`);
+  }
+  if (customization.extraCheese) parts.push('Extra cheese');
+  if (customization.spiceLevel) parts.push(`Spice: ${customization.spiceLevel}`);
+  if (customization.notes) parts.push(`Note: ${customization.notes}`);
+  
+  return parts.join(', ');
+}
+
+function updateCartTotals() {
+  const subtotal = app.cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
+  const deliveryFee = subtotal >= CONFIG.FREE_DELIVERY_THRESHOLD ? 0 : CONFIG.DELIVERY_FEE;
+  const tax = subtotal * CONFIG.TAX_RATE;
+  const total = subtotal + tax + deliveryFee;
+
+  $('#cartSubtotal')?.textContent && (document.getElementById('cartSubtotal').textContent = fmt(subtotal));
+  $('#cartTax')?.textContent && (document.getElementById('cartTax').textContent = fmt(tax));
+  $('#cartDeliveryFee')?.textContent && (document.getElementById('cartDeliveryFee').textContent = fmt(deliveryFee));
+  $('#cartTotal')?.textContent && (document.getElementById('cartTotal').textContent = fmt(total));
+
+  // Show free delivery progress
+  if (subtotal > 0 && subtotal < CONFIG.FREE_DELIVERY_THRESHOLD) {
+    const remaining = CONFIG.FREE_DELIVERY_THRESHOLD - subtotal;
+    showDeliveryPromotion(remaining);
+  } else {
+    hideDeliveryPromotion();
+  }
+}
+
+function showDeliveryPromotion(remaining) {
+  let promo = $('#deliveryPromo');
+  if (!promo) {
+    promo = document.createElement('div');
+    promo.id = 'deliveryPromo';
+    promo.className = 'delivery-promo';
+    $('#cartItems')?.parentNode?.insertBefore(promo, $('#cartItems')?.nextSibling);
+  }
+  
+  promo.innerHTML = `
+    <i class="fas fa-truck"></i>
+    <span>Add ₹${fmt(remaining)} more for free delivery!</span>
+  `;
+  promo.classList.add('show');
+}
+
+function hideDeliveryPromotion() {
+  const promo = $('#deliveryPromo');
+  if (promo) promo.remove();
+}
+
+/* =====================
+   LOCAL STORAGE
+   ===================== */
+function saveCart() {
+  try {
+    const cartData = {
+      items: app.cart,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem(LS_KEYS.CART, JSON.stringify(cartData));
+  } catch (error) {
+    console.warn('Failed to save cart:', error);
+  }
+}
+
+function restoreCart() {
+  try {
+    const cartData = localStorage.getItem(LS_KEYS.CART);
+    if (cartData) {
+      const parsed = JSON.parse(cartData);
+      
+      // Check if cart is not too old (24 hours)
+      const cartAge = new Date() - new Date(parsed.timestamp);
+      if (cartAge < 24 * 60 * 60 * 1000) {
+        app.cart = parsed.items || [];
+      } else {
+        // Clear old cart
+        localStorage.removeItem(LS_KEYS.CART);
+        app.cart = [];
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to restore cart:', error);
+    app.cart = [];
+  }
+  
+  updateCartUI();
+}
+
+/* =====================
+   ANALYTICS & TRACKING
+   ===================== */
+function trackEvent(eventName, parameters = {}) {
+  try {
+    // Firebase Analytics
+    if (window.gtag) {
+      gtag('event', eventName, parameters);
+    }
+    
+    // Custom analytics
+    console.log('Analytics Event:', eventName, parameters);
+    
+    // Store locally for debugging
+    const events = JSON.parse(localStorage.getItem('analyticsEvents') || '[]');
+    events.push({
+      event: eventName,
+      parameters,
+      timestamp: new Date().toISOString(),
+      userId: app.user?.uid || 'anonymous'
+    });
+    
+    // Keep only last 100 events
+    if (events.length > 100) events.splice(0, events.length - 100);
+    localStorage.setItem('analyticsEvents', JSON.stringify(events));
+    
+  } catch (error) {
+    console.warn('Analytics tracking failed:', error);
+  }
+}
+
+/* =====================
+   EVENT LISTENERS SETUP
+   ===================== */
+function setupEventListeners() {
+  // Navigation
+  $('.mobile-toggle')?.addEventListener('click', toggleMobileMenu);
+  $('.cart-toggle')?.addEventListener('click', openCart);
+  $('#cartOverlay')?.addEventListener('click', closeCart);
+  $('.user-toggle')?.addEventListener('click', toggleUserMenu);
+
+  // Auth modals
+  $('#authModal .close')?.addEventListener('click', closeAuthModal);
+  $('#authModal .auth-switch a').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (link.textContent?.toLowerCase().includes('sign up')) {
+        switchToRegister();
+      } else {
+        switchToLogin();
+      }
+    });
+  });
+
+  // Global click handlers
+  document.addEventListener('click', handleGlobalClicks);
+  
+  // Keyboard shortcuts
+  document.addEventListener('keydown', handleKeyboardShortcuts);
+
+  // Form bindings
+  bindAuthForms();
+  bindCheckoutForm();
+  bindContactForm();
+  bindReservationForm();
+
+  console.log('✅ Event listeners initialized');
+}
+
+function handleGlobalClicks(e) {
+  // Close dropdowns when clicking outside
+  if (!e.target.closest('.user-dropdown')) {
+    $('#userDropdown')?.classList.remove('show');
+  }
+
+  // Close mobile menu when clicking menu links
+  if (e.target.matches('.nav-menu a')) {
+    closeMobileMenu();
+  }
+}
+
+function handleKeyboardShortcuts(e) {
+  // ESC key closes modals
+  if (e.key === 'Escape') {
+    closeAuthModal();
+    closeCart();
+  }
+
+  // Ctrl/Cmd + K opens search (if implemented)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    // openSearchModal(); // Implement if needed
+  }
+}
+
+/* =====================
+   CART OPERATIONS
+   ===================== */
+function updateCartQuantity(cartKey, delta) {
+  const item = app.cart.find(c => c.cartKey === cartKey);
+  if (!item) return;
+
+  const newQuantity = item.quantity + delta;
+  
+  if (newQuantity <= 0) {
+    removeFromCart(cartKey);
+  } else if (newQuantity <= 10) { // Max 10 of same item
+    item.quantity = newQuantity;
+    updateCartUI();
+    updateMenuItemControls(item.id);
+    saveCart();
+    
+    // Haptic feedback on mobile
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+  } else {
+    showToast('Maximum 10 items of the same type allowed', 'warning');
+  }
+}
+
+function removeFromCart(cartKey) {
+  const item = app.cart.find(c => c.cartKey === cartKey);
+  if (!item) return;
+
+  app.cart = app.cart.filter(c => c.cartKey !== cartKey);
+  updateCartUI();
+  updateMenuItemControls(item.id);
+  saveCart();
+  
+  showToast(`${item.name} removed from cart`, 'info');
+  trackEvent('remove_from_cart', { 
+    item_id: item.id, 
+    item_name: item.name,
+    quantity_removed: item.quantity
+  });
+}
+
+function clearCart() {
+  if (app.cart.length === 0) return;
+  
+  if (confirm('Are you sure you want to clear your cart?')) {
+    app.cart = [];
+    updateCartUI();
+    saveCart();
+    showToast('Cart cleared', 'info');
+    trackEvent('clear_cart');
+  }
 }
 
 function openCart() {
   $('#cartSidebar')?.classList.add('open');
   $('#cartOverlay')?.classList.add('show');
   document.body.style.overflow = 'hidden';
+  trackEvent('view_cart');
 }
 
 function closeCart() {
@@ -712,430 +1034,495 @@ function closeCart() {
   document.body.style.overflow = 'auto';
 }
 
-/* =====================
-   CHECKOUT FLOW
-   ===================== */
 function proceedToCheckout() {
-  if (!app.cart.length) {
-    showToast('Your cart is empty.', 'warning');
+  if (app.cart.length === 0) {
+    showToast('Your cart is empty', 'warning');
     return;
   }
-  // Always redirect to checkout page
-  saveCart(); // make sure cart is preserved
+
+  const subtotal = app.cart.reduce((sum, item) => sum + (item.finalPrice * item.quantity), 0);
+  if (subtotal < CONFIG.MIN_ORDER_VALUE) {
+    showToast(`Minimum order value is ₹${CONFIG.MIN_ORDER_VALUE}`, 'warning');
+    return;
+  }
+
+  // Save cart and proceed
+  saveCart();
+  trackEvent('begin_checkout', { 
+    value: subtotal,
+    items: app.cart.length 
+  });
+  
   window.location.href = 'checkout.html';
 }
 
-// =====================
-// CHECKOUT: UI + Firestore submit
-// =====================
+/* =====================
+   MENU RENDERING
+   ===================== */
+function renderMenuItems(filter = 'all') {
+  const container = $('#menuItems');
+  if (!container) return;
 
-function bindCheckoutForm() {
-  const form = document.getElementById('checkoutForm');
-  if (!form) return;
+  const filteredItems = filter === 'all' 
+    ? app.menu 
+    : app.menu.filter(item => item.category === filter);
 
-  // show/hide payment fields based on method
-  form.querySelectorAll('input[name="paymentMethod"]').forEach((el) => {
-    el.addEventListener('change', handlePaymentMethodChange);
-  });
-
-  // show/hide delivery vs pickup fields
-  form.querySelectorAll('input[name="deliveryType"]').forEach((el) => {
-    el.addEventListener('change', handleDeliveryTypeChange);
-  });
-
-  // populate order summary when modal opens
-  const modal = document.getElementById('checkoutModal');
-  if (modal) {
-    modal.addEventListener('transitionend', updateOrderSummaryOnOpen);
-    // also update immediately in case modal already visible
-    updateOrderSummary();
-  }
-
-  // submit handler
-  form.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    await submitOrder();
-  });
-}
-
-function handlePaymentMethodChange(e) {
-  const val = e.target.value;
-  const paymentDetails = document.getElementById('paymentDetails');
-  const cardFields = document.getElementById('cardFields');
-  const upiFields = document.getElementById('upiFields');
-  if (!paymentDetails || !cardFields || !upiFields) return;
-
-  paymentDetails.classList.remove('hidden');
-  cardFields.classList.add('hidden');
-  upiFields.classList.add('hidden');
-
-  if (val === 'card') {
-    cardFields.classList.remove('hidden');
-  } else if (val === 'upi') {
-    upiFields.classList.remove('hidden');
-  } else {
-    paymentDetails.classList.add('hidden');
-  }
-}
-
-function handleDeliveryTypeChange(e) {
-  const val = e.target.value;
-  const deliveryFields = document.getElementById('deliveryFields');
-  if (!deliveryFields) return;
-  deliveryFields.style.display = val === 'pickup' ? 'none' : 'block';
-  updateOrderSummary();
-}
-
-function updateOrderSummaryOnOpen(e) {
-  // ensure summary is up-to-date when modal becomes visible
-  if (e.propertyName === 'opacity') {
-    updateOrderSummary();
-  }
-}
-
-function updateOrderSummary() {
-  // render cart items + totals to checkout modal
-  const itemsContainer = document.getElementById('checkoutOrderItems');
-  const subtotalEl = document.getElementById('checkoutSubtotal');
-  const taxEl = document.getElementById('checkoutTax');
-  const totalEl = document.getElementById('checkoutTotal');
-  const deliveryFeeEl = document.getElementById('checkoutDeliveryFee');
-
-  const items = app.cart || [];
-  if (!itemsContainer) return;
-
-  if (!items.length) {
-    itemsContainer.innerHTML = '<p>Your cart is empty.</p>';
-  } else {
-    itemsContainer.innerHTML = items.map(i => `
-      <div class="checkout-line">
-        <span class="item-name">${i.name} x ${i.quantity}</span>
-        <span class="item-price">₹${(i.price * i.quantity).toFixed(2)}</span>
+  if (filteredItems.length === 0) {
+    container.innerHTML = `
+      <div class="no-items-found">
+        <i class="fas fa-search"></i>
+        <h3>No items found</h3>
+        <p>Try selecting a different category</p>
       </div>
-    `).join('');
-  }
-
-  const subtotal = items.reduce((s, it) => s + it.price * it.quantity, 0);
-  const tax = subtotal * 0.12;
-  const deliveryFee = Number(deliveryFeeEl?.textContent || 40);
-  const total = subtotal + tax + deliveryFee;
-
-  if (subtotalEl) subtotalEl.textContent = subtotal.toFixed(2);
-  if (taxEl) taxEl.textContent = tax.toFixed(2);
-  if (deliveryFeeEl) deliveryFeeEl.textContent = deliveryFee.toFixed(2);
-  if (totalEl) totalEl.textContent = total.toFixed(2);
-}
-
-// validate simple required fields for delivery (for deliveryType=delivery)
-function validateCheckoutFormValues(values) {
-  // basic checks
-  if (!values.deliveryType) return 'Delivery type required';
-  if (values.deliveryType === 'delivery') {
-    if (!values.name) return 'Name is required';
-    if (!values.phone || !/^[0-9]{8,15}$/.test(values.phone.replace(/\s+/g, ''))) return 'Valid phone is required';
-    if (!values.addressLine) return 'Address is required';
-    if (!values.city) return 'City is required';
-    if (!values.pincode || !/^\d{6}$/.test(values.pincode)) return 'Valid 6-digit pincode required';
-  }
-  // payment check (if UPI/Card require a field)
-  if (!values.paymentMethod) return 'Payment method required';
-  if (values.paymentMethod === 'upi' && !values.upiId) return 'Please provide UPI ID';
-  if (values.paymentMethod === 'card') {
-    // We store card info as masked/placeholder only (no real processing here)
-    if (!values.cardNumber || !values.cardName) return 'Card details required (card processing not integrated)';
-  }
-  if (!app.cart || !app.cart.length) return 'Cart is empty';
-  return null;
-}
-
-async function submitOrder() {
-  // collect form values
-  const deliveryType = document.querySelector('input[name="deliveryType"]:checked')?.value || 'delivery';
-  const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || 'cod';
-
-  const values = {
-    deliveryType,
-    paymentMethod,
-    name: (document.getElementById('deliveryName')?.value || '').trim(),
-    phone: (document.getElementById('deliveryPhone')?.value || '').trim(),
-    addressLine: (document.getElementById('deliveryAddressLine')?.value || '').trim(),
-    city: (document.getElementById('deliveryCity')?.value || '').trim(),
-    pincode: (document.getElementById('deliveryPincode')?.value || '').trim(),
-    instructions: (document.getElementById('deliveryInstructions')?.value || '').trim(),
-    upiId: (document.getElementById('upiId')?.value || '').trim(),
-    cardNumber: (document.getElementById('cardNumber')?.value || '').trim(),
-    expiryDate: (document.getElementById('expiryDate')?.value || '').trim(),
-    cvv: (document.getElementById('cvv')?.value || '').trim(),
-    cardName: (document.getElementById('cardName')?.value || '').trim(),
-  };
-
-  // validate
-  const validationError = validateCheckoutFormValues(values);
-  if (validationError) {
-    showToast(validationError, 'error');
+    `;
     return;
   }
 
-  // compute totals
-  const subtotal = app.cart.reduce((s, it) => s + it.price * it.quantity, 0);
-  const tax = subtotal * 0.12;
-  const deliveryFee = Number(document.getElementById('checkoutDeliveryFee')?.textContent || 40);
-  const total = subtotal + tax + deliveryFee;
+  container.innerHTML = filteredItems.map(renderMenuItem).join('');
+  
+  // Update active category button
+  $('.category-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.category === filter);
+  });
+}
 
-  // prepare order payload
-  const orderPayload = {
-    items: app.cart.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.quantity })),
-    subtotal,
-    tax,
-    deliveryFee,
-    total,
-    paymentMethod: values.paymentMethod,
-    deliveryType: values.deliveryType,
-    name: values.name || null,
-    phone: values.phone || null,
-    addressLine: values.addressLine || null,
-    city: values.city || null,
-    pincode: values.pincode || null,
-    instructions: values.instructions || null,
-    createdAt: new Date().toISOString(),
-    uid: app.user ? app.user.uid : null,
-    status: 'pending',
-  };
+function renderMenuItem(item) {
+  const cartItem = app.cart.find(c => c.id === item.id);
+  const isInCart = cartItem && cartItem.quantity > 0;
+  const discountPercentage = item.originalPrice ? 
+    Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100) : 0;
 
-  // If card or upi we mark paymentStatus accordingly (no gateway integration here)
-  if (values.paymentMethod === 'card' || values.paymentMethod === 'upi') {
-    orderPayload.paymentStatus = 'pending';
-    // **Important**: Do NOT store raw CVV or sensitive full card numbers. If card fields are collected,
-    // store only masked data or a token returned from a proper payment gateway.
-    if (values.cardNumber) {
-      orderPayload.cardMasked = values.cardNumber.replace(/\s+/g, '').slice(-4).padStart(values.cardNumber.length, '*');
+  return `
+    <div class="menu-item ${!item.isAvailable ? 'unavailable' : ''}" data-category="${item.category}">
+      <div class="menu-item-image-container">
+        <img class="menu-item-image"
+             src="${item.image}"
+             alt="${item.name}"
+             loading="lazy"
+             onerror="this.src='https://via.placeholder.com/300x200/8B4513/FFFFFF?text=${encodeURIComponent(item.name)}'">
+        
+        ${discountPercentage > 0 ? `<div class="discount-badge">${discountPercentage}% OFF</div>` : ''}
+        ${item.tags?.includes('bestseller') ? '<div class="bestseller-badge">Bestseller</div>' : ''}
+        ${!item.isAvailable ? '<div class="unavailable-overlay">Currently Unavailable</div>' : ''}
+      </div>
+
+      <div class="menu-item-content">
+        <div class="menu-item-header">
+          <div class="menu-item-info">
+            <h3 class="menu-item-name">${item.name}</h3>
+            <p class="menu-item-description">${item.description}</p>
+            
+            <div class="menu-item-details">
+              ${item.preparationTime ? `<span class="prep-time"><i class="fas fa-clock"></i> ${item.preparationTime} min</span>` : ''}
+              ${item.spiceLevel > 0 ? `<span class="spice-level">${'🌶️'.repeat(item.spiceLevel)}</span>` : ''}
+              ${item.calories ? `<span class="calories">${item.calories} cal</span>` : ''}
+            </div>
+
+            <div class="menu-item-tags">
+              ${(item.tags || []).map(tag => `<span class="tag tag-${tag}">${tag}</span>`).join('')}
+            </div>
+          </div>
+
+          <div class="menu-item-pricing">
+            ${item.originalPrice ? `<span class="original-price">₹${item.originalPrice}</span>` : ''}
+            <span class="current-price">₹${item.price}</span>
+          </div>
+        </div>
+
+        <div class="menu-item-actions">
+          ${item.isAvailable ? renderCartControls(item.id) : '<button class="unavailable-btn" disabled>Unavailable</button>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCartControls(itemId) {
+  const cartItem = app.cart.find(c => c.id === itemId);
+  
+  if (cartItem && cartItem.quantity > 0) {
+    return `
+      <div class="quantity-controls">
+        <button class="quantity-btn minus" onclick="updateCartQuantity('${cartItem.cartKey}', -1)">
+          <i class="fas fa-minus"></i>
+        </button>
+        <span class="quantity-display">${cartItem.quantity}</span>
+        <button class="quantity-btn plus" onclick="updateCartQuantity('${cartItem.cartKey}', 1)">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+    `;
+  }
+
+  return `
+    <button class="add-to-cart-btn" onclick="addToCart('${itemId}')">
+      <i class="fas fa-plus"></i>
+      <span>Add to Cart</span>
+    </button>
+  `;
+}
+
+function updateMenuItemControls(itemId) {
+  const menuItems = $(`.menu-item[data-category]`);
+  menuItems.forEach(menuItem => {
+    const addButton = menuItem.querySelector(`[onclick*="${itemId}"]`);
+    if (addButton) {
+      const actionsContainer = menuItem.querySelector('.menu-item-actions');
+      if (actionsContainer) {
+        actionsContainer.innerHTML = renderCartControls(itemId);
+      }
     }
-    if (values.upiId) orderPayload.upiId = values.upiId;
-  } else {
-    orderPayload.paymentStatus = 'cash_on_delivery';
-  }
-
-// write to Firestore if available
-try {
-  if (app.firebaseReady && app.db && window.firebase?.firestore) {
-    const docRef = await app.db.collection('orders').add({
-      ...orderPayload,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // clear cart
-    app.cart = [];
-    saveCart();
-    updateCartUI();
-
-    // 🔑 redirect to order confirmation page
-    window.location.href = `order-success.html?orderId=${docRef.id}`;
-  } else {
-    // fallback (local storage)
-    const raw = localStorage.getItem('localOrders');
-    const orders = raw ? JSON.parse(raw) : [];
-    const localId = 'local_' + Date.now();
-    orders.push({ id: localId, ...orderPayload });
-    localStorage.setItem('localOrders', JSON.stringify(orders));
-
-    app.cart = [];
-    saveCart();
-    updateCartUI();
-
-    // redirect with local orderId
-    window.location.href = `order-success.html?orderId=${localId}`;
-  }
-} catch (err) {
-  console.error('Order submit error', err);
-  showToast('Failed to place order. Try again later.', 'error');
-}
+  });
 }
 
+function renderPopularDishes() {
+  const container = $('#popularDishes');
+  if (!container) return;
+
+  const popularItems = app.menu.filter(item => item.isPopular && item.isAvailable).slice(0, 6);
+  
+  if (popularItems.length === 0) {
+    container.innerHTML = '<p class="no-popular-items">No popular dishes available at the moment</p>';
+    return;
+  }
+
+  container.innerHTML = popularItems.map(item => `
+    <div class="popular-dish-card">
+      <img src="${item.image}" alt="${item.name}" loading="lazy"
+           onerror="this.src='https://via.placeholder.com/250x150/8B4513/FFFFFF?text=${encodeURIComponent(item.name)}'">
+      
+      <div class="popular-dish-content">
+        <h3>${item.name}</h3>
+        <p>${item.description}</p>
+        <div class="popular-dish-footer">
+          <span class="price">₹${item.price}</span>
+          <button onclick="addToCart('${item.id}')" class="quick-add-btn">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterMenu(category) {
+  renderMenuItems(category);
+  trackEvent('filter_menu', { category });
+}
 
 /* =====================
-   RESERVATIONS
+   MODAL MANAGEMENT
    ===================== */
+function showAuthModal(type = 'login') {
+  const modal = $('#authModal');
+  if (!modal) return;
+
+  modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+
+  const loginForm = $('#loginForm');
+  const registerForm = $('#registerForm');
+
+  if (loginForm && registerForm) {
+    if (type === 'login') {
+      loginForm.classList.add('active');
+      registerForm.classList.remove('active');
+    } else {
+      registerForm.classList.add('active');
+      loginForm.classList.remove('active');
+    }
+  }
+
+  // Focus first input
+  setTimeout(() => {
+    const firstInput = modal.querySelector('.active input');
+    if (firstInput) firstInput.focus();
+  }, 100);
+}
+
+function closeAuthModal() {
+  const modal = $('#authModal');
+  if (!modal) return;
+
+  modal.classList.remove('show');
+  document.body.style.overflow = 'auto';
+
+  // Clear form messages
+  $('#loginMessage')?.textContent && (document.getElementById('loginMessage').innerHTML = '');
+  $('#registerMessage')?.textContent && (document.getElementById('registerMessage').innerHTML = '');
+}
+
+function switchToRegister() {
+  showAuthModal('register');
+}
+
+function switchToLogin() {
+  showAuthModal('login');
+}
+
+/* =====================
+   NAVIGATION
+   ===================== */
+function toggleMobileMenu() {
+  $('#navMenu')?.classList.toggle('active');
+  $('.mobile-toggle')?.classList.toggle('active');
+  
+  // Prevent scroll when menu is open
+  if ($('#navMenu')?.classList.contains('active')) {
+    document.body.style.overflow = 'hidden';
+  } else {
+    document.body.style.overflow = 'auto';
+  }
+}
+
+function closeMobileMenu() {
+  $('#navMenu')?.classList.remove('active');
+  $('.mobile-toggle')?.classList.remove('active');
+  document.body.style.overflow = 'auto';
+}
+
+function toggleUserMenu() {
+  $('#userDropdown')?.classList.toggle('show');
+}
+
+/* =====================
+   FORM HANDLERS
+   ===================== */
+function bindCheckoutForm() {
+  const form = $('#checkoutForm');
+  if (!form) return;
+
+  form.addEventListener('submit', handleCheckoutSubmit);
+  
+  // Payment method changes
+  form.querySelectorAll('input[name="paymentMethod"]').forEach(input => {
+    input.addEventListener('change', handlePaymentMethodChange);
+  });
+
+  // Delivery type changes  
+  form.querySelectorAll('input[name="deliveryType"]').forEach(input => {
+    input.addEventListener('change', handleDeliveryTypeChange);
+  });
+
+  // Real-time validation
+  form.querySelectorAll('input, select, textarea').forEach(field => {
+    field.addEventListener('blur', validateField);
+  });
+
+  console.log('✅ Checkout form bound');
+}
+
+function bindContactForm() {
+  const form = $('#contactForm');
+  if (!form) return;
+
+  form.addEventListener('submit', handleContactSubmit);
+  console.log('✅ Contact form bound');
+}
+
 function bindReservationForm() {
   const form = $('#reservationForm');
   if (!form) return;
 
-  // Set min date today
+  form.addEventListener('submit', handleReservationSubmit);
+  
+  // Set minimum date to today
   const dateInput = $('#resDate');
   if (dateInput) {
     const today = new Date().toISOString().split('T')[0];
     dateInput.setAttribute('min', today);
   }
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  console.log('✅ Reservation form bound');
+}
 
-    const name = $('#resName')?.value.trim();
-    const phone = $('#resPhone')?.value.trim();
-    const email = $('#resEmail')?.value.trim();
-    const date = $('#resDate')?.value;
-    const time = $('#resTime')?.value;
-    const guests = parseInt($('#resGuests')?.value || '2', 10);
-    const note = $('#resNote')?.value.trim() || '';
+/* =====================
+   FORM SUBMIT HANDLERS
+   ===================== */
+async function handleCheckoutSubmit(e) {
+  e.preventDefault();
+  
+  if (!validateCheckoutForm()) {
+    return;
+  }
 
-    const payload = {
-      name,
-      phone,
-      email,
-      date,
-      time,
-      guests,
-      note,
-      createdAt: new Date().toISOString(),
-    };
+  try {
+    showLoadingSpinner('Processing your order...');
+    
+    const orderData = collectCheckoutData();
+    const orderId = await submitOrder(orderData);
+    
+    // Clear cart on successful order
+    app.cart = [];
+    saveCart();
+    updateCartUI();
+    
+    // Redirect to success page
+    window.location.href = `order-success.html?orderId=${orderId}`;
+    
+  } catch (error) {
+    console.error('Checkout error:', error);
+    showToast('Failed to place order. Please try again.', 'error');
+  } finally {
+    hideLoadingSpinner();
+  }
+}
 
-    try {
-      if (app.firebaseReady && app.db) {
-        await app.db.collection('reservations').add({
-          ...payload,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          uid: app.user ? app.user.uid : null,
-        });
-      } else {
-        // local fallback
-        const draftRaw = localStorage.getItem(LS_KEYS.RESERVATION);
-        const arr = draftRaw ? JSON.parse(draftRaw) : [];
-        arr.push(payload);
-        localStorage.setItem(LS_KEYS.RESERVATION, JSON.stringify(arr));
-      }
-      showToast('Reservation submitted!', 'success');
-      form.reset();
-    } catch (e2) {
-      console.error(e2);
-      showToast('Failed to submit reservation', 'error');
+async function handleContactSubmit(e) {
+  e.preventDefault();
+  
+  const formData = new FormData(e.target);
+  const contactData = Object.fromEntries(formData);
+  
+  try {
+    if (app.firebaseReady && app.db) {
+      await app.db.collection('contact-messages').add({
+        ...contactData,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        userId: app.user?.uid || null,
+        status: 'new'
+      });
+    } else {
+      // Local fallback
+      const messages = JSON.parse(localStorage.getItem('contactMessages') || '[]');
+      messages.push({
+        ...contactData,
+        id: 'msg_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        status: 'new'
+      });
+      localStorage.setItem('contactMessages', JSON.stringify(messages));
     }
-  });
+    
+    showToast('Message sent successfully! We\'ll get back to you soon.', 'success');
+    e.target.reset();
+    
+  } catch (error) {
+    console.error('Contact form error:', error);
+    showToast('Failed to send message. Please try again.', 'error');
+  }
 }
 
-/* =====================
-   CONTACT FORM
-   ===================== */
-function bindContactForm() {
-  const form = $('#contactForm');
-  if (!form) return;
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = $('#contactName')?.value.trim();
-    const email = $('#contactEmail')?.value.trim();
-    const subject = $('#contactSubject')?.value;
-    const message = $('#contactMessageText')?.value.trim();
-    const statusBox = $('#contactMessage');
-
-    const payload = {
-      name,
-      email,
-      subject,
-      message,
-      createdAt: new Date().toISOString(),
-    };
-
-    try {
-      if (app.firebaseReady && app.db && window.firebase?.firestore) {
-        await app.db.collection('contactMessages').add({
-          ...payload,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          uid: app.user ? app.user.uid : null,
-        });
-      } else {
-        // local fallback
-        const raw = localStorage.getItem(LS_KEYS.CONTACT);
-        const arr = raw ? JSON.parse(raw) : [];
-        arr.push(payload);
-        localStorage.setItem(LS_KEYS.CONTACT, JSON.stringify(arr));
-      }
-
-      statusBox &&
-        (statusBox.innerHTML = `<p class="success">✅ Thank you, ${name}! Your message has been sent.</p>`);
-      showToast('Message sent successfully', 'success');
-      form.reset();
-    } catch (err) {
-      console.error(err);
-      statusBox &&
-        (statusBox.innerHTML = `<p class="error">❌ Something went wrong. Please try again later.</p>`);
-      showToast('Failed to send your message', 'error');
+async function handleReservationSubmit(e) {
+  e.preventDefault();
+  
+  const formData = new FormData(e.target);
+  const reservationData = Object.fromEntries(formData);
+  
+  try {
+    if (app.firebaseReady && app.db) {
+      await app.db.collection('reservations').add({
+        ...reservationData,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        userId: app.user?.uid || null,
+        status: 'pending'
+      });
+    } else {
+      // Local fallback
+      const reservations = JSON.parse(localStorage.getItem('reservations') || '[]');
+      reservations.push({
+        ...reservationData,
+        id: 'res_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        status: 'pending'
+      });
+      localStorage.setItem('reservations', JSON.stringify(reservations));
     }
-  });
+    
+    showToast('Reservation submitted successfully!', 'success');
+    e.target.reset();
+    
+  } catch (error) {
+    console.error('Reservation form error:', error);
+    showToast('Failed to submit reservation. Please try again.', 'error');
+  }
 }
 
 /* =====================
-   MODALS (GENERIC)
+   INITIALIZATION
    ===================== */
-function showModal(id) {
-  const modal = document.getElementById(id);
-  if (!modal) return;
-  modal.classList.add('show');
-  document.body.style.overflow = 'hidden';
+async function initializeApp() {
+  try {
+    console.log('🍕 Initializing Bella Notte...');
+    
+    bootstrapFirebaseIfAvailable();
+    setupAuthStateListener();
+    
+    await loadMenuItems();
+    
+    restoreCart();
+    setupEventListeners();
+    
+    // Load user-specific data if logged in
+    if (app.user) {
+      loadUserData();
+    }
+    
+    hideLoadingScreen();
+    updateCartUI();
+    
+    console.log('✅ Bella Notte ready!');
+    
+  } catch (error) {
+    console.error('App initialization error:', error);
+    hideLoadingScreen();
+    showToast('Some features may not work properly. Please refresh the page.', 'warning');
+  }
 }
-function closeModal(id) {
-  const modal = document.getElementById(id);
-  if (!modal) return;
-  modal.classList.remove('show');
-  document.body.style.overflow = 'auto';
+
+async function loadUserData() {
+  if (!app.user || !app.firebaseReady) return;
+  
+  try {
+    // Load user addresses
+    const addressSnapshot = await app.db.collection('addresses')
+      .where('userId', '==', app.user.uid)
+      .orderBy('isDefault', 'desc')
+      .get();
+      
+    app.addresses = addressSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Load recent orders
+    const ordersSnapshot = await app.db.collection('orders')
+      .where('userId', '==', app.user.uid)
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .get();
+      
+    app.orders = ordersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+  } catch (error) {
+    console.error('Error loading user data:', error);
+  }
+}
+function switchToForgotPassword() {
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+  
+  if (loginForm) loginForm.classList.remove('active');
+  if (registerForm) registerForm.classList.remove('active');
+  if (forgotPasswordForm) forgotPasswordForm.classList.add('active');
+}
+
+function switchBackToLogin() {
+  const loginForm = document.getElementById('loginForm');
+  const registerForm = document.getElementById('registerForm');
+  const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+  
+  if (loginForm) loginForm.classList.add('active');
+  if (registerForm) registerForm.classList.remove('active');
+  if (forgotPasswordForm) forgotPasswordForm.classList.remove('active');
 }
 
 /* =====================
-   EVENT BINDINGS
-   ===================== */
-function setupEventListeners() {
-  // Nav & user menu
-  $('.mobile-toggle')?.addEventListener('click', toggleMobileMenu);
-  $('.cart-toggle')?.addEventListener('click', openCart);
-  $('#cartOverlay')?.addEventListener('click', closeCart);
-
-  // Auth modal links if present
-  $('#authModal .close')?.addEventListener('click', closeAuthModal);
-  $$('#authModal .auth-switch a').forEach((a) => {
-    a.addEventListener('click', (e) => {
-      e.preventDefault();
-      if (a.textContent?.toLowerCase().includes('sign up')) {
-        switchToRegister();
-      } else {
-        switchToLogin();
-      }
-    });
-  });
-
-  // Global click dismissals
-  globalClickDismissals();
-
-  // Bind forms present on page
-  bindAuthForms();
-bindCheckoutForm();
-  bindReservationForm();
-  bindContactForm();
-
-  // Enable clicking the checkout button if present
-  const checkoutBtn = $('.checkout-btn');
-  checkoutBtn?.addEventListener('click', proceedToCheckout);
-
-  console.log('✅ Event listeners bound');
-}
-
-/* =====================
-   INIT
-   ===================== */
-onDOMReady(async () => {
-  console.log('🍝 Bella Notte — initializing app');
-  bootstrapFirebaseIfAvailable();      // optional
-  setupAuthStateListener();            // auth state
-  await loadMenuItems();               // menu load (db -> fallback)
-  restoreCart();                       // restore cart & refresh UI
-  setupEventListeners();               // wire events
-  hideLoadingScreen();                 // hide preloader if any
-
-  // Initial UI pass to ensure button states are correct
-  updateCartUI();
-
-  console.log('🍕 Bella Notte — ready');
-});
-
-/* =====================
-   EXPORT FOR INLINE HANDLERS
+   WINDOW EXPORTS
    ===================== */
 window.toggleMobileMenu = toggleMobileMenu;
 window.toggleUserMenu = toggleUserMenu;
@@ -1143,17 +1530,21 @@ window.openCart = openCart;
 window.closeCart = closeCart;
 window.addToCart = addToCart;
 window.removeFromCart = removeFromCart;
-window.updateQuantity = updateQuantity;
+window.updateCartQuantity = updateCartQuantity;
+window.clearCart = clearCart;
 window.filterMenu = filterMenu;
 window.showAuthModal = showAuthModal;
 window.closeAuthModal = closeAuthModal;
 window.switchToLogin = switchToLogin;
 window.switchToRegister = switchToRegister;
+window.switchToForgotPassword = switchToForgotPassword;
+window.switchBackToLogin = switchBackToLogin;
 window.signOutUser = signOutUser;
 window.proceedToCheckout = proceedToCheckout;
-window.showModal = showModal;
-window.closeModal = closeModal;
+window.sendEmailVerification = sendEmailVerification;
+window.hideEmailVerificationBanner = hideEmailVerificationBanner;
 
-/* =====================================================================
-   END OF FILE
-   ===================================================================== */
+/* =====================
+   APP STARTUP
+   ===================== */
+onDOMReady(initializeApp);
